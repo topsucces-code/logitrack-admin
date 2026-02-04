@@ -1,0 +1,341 @@
+import { useEffect, useState } from 'react';
+import { AlertTriangle, CheckCircle, Clock, Eye } from 'lucide-react';
+import Header from '../components/layout/Header';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+import Modal from '../components/ui/Modal';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
+import { getIncidents, updateIncidentStatus } from '../services/adminService';
+import type { Incident } from '../types';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
+export default function IncidentsPage() {
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [severityFilter, setSeverityFilter] = useState<string>('');
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [resolution, setResolution] = useState('');
+
+  useEffect(() => {
+    loadIncidents();
+  }, [statusFilter, severityFilter]);
+
+  const loadIncidents = async () => {
+    setLoading(true);
+    try {
+      const data = await getIncidents({
+        status: statusFilter || undefined,
+        severity: severityFilter || undefined,
+        limit: 100,
+      });
+      setIncidents(data);
+    } catch (error) {
+      console.error('Error loading incidents:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResolve = async () => {
+    if (!selectedIncident || !resolution) return;
+    await updateIncidentStatus(selectedIncident.id, 'resolved', resolution);
+    setShowDetailModal(false);
+    setSelectedIncident(null);
+    setResolution('');
+    loadIncidents();
+  };
+
+  const handleClose = async (id: string) => {
+    await updateIncidentStatus(id, 'closed');
+    loadIncidents();
+  };
+
+  const getStatusBadge = (status: string) => {
+    const config: Record<string, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info'; label: string }> = {
+      open: { variant: 'danger', label: 'Ouvert' },
+      investigating: { variant: 'warning', label: 'En cours' },
+      resolved: { variant: 'success', label: 'Résolu' },
+      closed: { variant: 'default', label: 'Fermé' },
+      escalated: { variant: 'danger', label: 'Escaladé' },
+    };
+    const c = config[status] || { variant: 'default', label: status };
+    return <Badge variant={c.variant}>{c.label}</Badge>;
+  };
+
+  const getSeverityBadge = (severity: string) => {
+    const config: Record<string, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info'; label: string }> = {
+      low: { variant: 'info', label: 'Faible' },
+      medium: { variant: 'warning', label: 'Moyen' },
+      high: { variant: 'danger', label: 'Élevé' },
+      critical: { variant: 'danger', label: 'Critique' },
+    };
+    const c = config[severity] || { variant: 'default', label: severity };
+    return <Badge variant={c.variant}>{c.label}</Badge>;
+  };
+
+  const getIncidentTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      package_damaged: 'Colis endommagé',
+      package_lost: 'Colis perdu',
+      delivery_delayed: 'Retard de livraison',
+      wrong_address: 'Mauvaise adresse',
+      customer_unavailable: 'Client absent',
+      driver_misconduct: 'Comportement livreur',
+      payment_issue: 'Problème de paiement',
+      other: 'Autre',
+    };
+    return labels[type] || type;
+  };
+
+  const stats = {
+    total: incidents.length,
+    open: incidents.filter((i) => i.status === 'open').length,
+    investigating: incidents.filter((i) => i.status === 'investigating').length,
+    resolved: incidents.filter((i) => i.status === 'resolved').length,
+  };
+
+  return (
+    <div className="min-h-screen">
+      <Header title="Incidents & Litiges" subtitle="Gérez les incidents de livraison" />
+
+      <div className="p-6">
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          <Card>
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                <AlertTriangle className="w-5 h-5 text-gray-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-sm text-gray-500">Total</p>
+              </div>
+            </div>
+          </Card>
+          <Card>
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mr-3">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-red-600">{stats.open}</p>
+                <p className="text-sm text-gray-500">Ouverts</p>
+              </div>
+            </div>
+          </Card>
+          <Card>
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center mr-3">
+                <Clock className="w-5 h-5 text-yellow-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-yellow-600">{stats.investigating}</p>
+                <p className="text-sm text-gray-500">En cours</p>
+              </div>
+            </div>
+          </Card>
+          <Card>
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-green-600">{stats.resolved}</p>
+                <p className="text-sm text-gray-500">Résolus</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Filters */}
+        <div className="flex items-center gap-4 mb-6">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="">Tous les statuts</option>
+            <option value="open">Ouvert</option>
+            <option value="investigating">En cours</option>
+            <option value="resolved">Résolu</option>
+            <option value="closed">Fermé</option>
+          </select>
+          <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="">Toutes les sévérités</option>
+            <option value="low">Faible</option>
+            <option value="medium">Moyen</option>
+            <option value="high">Élevé</option>
+            <option value="critical">Critique</option>
+          </select>
+        </div>
+
+        {/* Table */}
+        <Card padding="none">
+          {loading ? (
+            <div className="p-8 text-center">
+              <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />
+            </div>
+          ) : incidents.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              Aucun incident trouvé
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Incident</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Livraison</TableHead>
+                  <TableHead>Sévérité</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {incidents.map((incident) => (
+                  <TableRow key={incident.id}>
+                    <TableCell>
+                      <div className="max-w-xs">
+                        <div className="font-medium truncate">{incident.title}</div>
+                        <div className="text-xs text-gray-500 truncate">{incident.description}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getIncidentTypeLabel(incident.incident_type)}</TableCell>
+                    <TableCell>
+                      {incident.delivery ? (
+                        <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {incident.delivery.tracking_code}
+                        </code>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell>{getSeverityBadge(incident.severity)}</TableCell>
+                    <TableCell>{getStatusBadge(incident.status)}</TableCell>
+                    <TableCell>
+                      {format(new Date(incident.created_at), 'dd/MM/yy HH:mm', { locale: fr })}
+                    </TableCell>
+                    <TableCell>
+                      <button
+                        onClick={() => {
+                          setSelectedIncident(incident);
+                          setShowDetailModal(true);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-primary-500 hover:bg-gray-100 rounded-lg"
+                        title="Voir détails"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+      </div>
+
+      {/* Detail Modal */}
+      <Modal
+        isOpen={showDetailModal}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedIncident(null);
+          setResolution('');
+        }}
+        title="Détails de l'incident"
+        size="lg"
+      >
+        {selectedIncident && (
+          <div className="space-y-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">{selectedIncident.title}</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Signalé le {format(new Date(selectedIncident.created_at), 'dd MMMM yyyy à HH:mm', { locale: fr })}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {getSeverityBadge(selectedIncident.severity)}
+                {getStatusBadge(selectedIncident.status)}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4">
+              <p className="text-sm text-gray-500 mb-1">Description</p>
+              <p>{selectedIncident.description}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">Type d'incident</p>
+                <p className="font-medium">{getIncidentTypeLabel(selectedIncident.incident_type)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Livraison</p>
+                <p className="font-medium">
+                  {selectedIncident.delivery?.tracking_code || '-'}
+                </p>
+              </div>
+            </div>
+
+            {selectedIncident.resolution && (
+              <div className="bg-green-50 rounded-lg p-4">
+                <p className="text-sm text-green-600 mb-1">Résolution</p>
+                <p>{selectedIncident.resolution}</p>
+              </div>
+            )}
+
+            {['open', 'investigating'].includes(selectedIncident.status) && (
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Résolution
+                </label>
+                <textarea
+                  value={resolution}
+                  onChange={(e) => setResolution(e.target.value)}
+                  placeholder="Décrivez comment l'incident a été résolu..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  rows={3}
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              {selectedIncident.status === 'resolved' && (
+                <Button variant="outline" onClick={() => handleClose(selectedIncident.id)}>
+                  Fermer l'incident
+                </Button>
+              )}
+              {['open', 'investigating'].includes(selectedIncident.status) && (
+                <Button onClick={handleResolve} disabled={!resolution}>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Marquer comme résolu
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setSelectedIncident(null);
+                  setResolution('');
+                }}
+              >
+                Fermer
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
