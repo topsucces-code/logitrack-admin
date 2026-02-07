@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Search, CheckCircle, Ban, XCircle, Eye, Phone } from 'lucide-react';
+import { Search, CheckCircle, Ban, XCircle, Eye, Phone, AlertCircle } from 'lucide-react';
+import { useToast } from '../contexts/ToastContext';
+import { formatCurrency } from '../utils/format';
+import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -10,8 +13,10 @@ import { getDrivers, approveDriver, suspendDriver, rejectDriver } from '../servi
 import type { Driver } from '../types';
 
 export default function DriversPage() {
+  const { showSuccess, showError } = useToast();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -23,28 +28,36 @@ export default function DriversPage() {
 
   const loadDrivers = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await getDrivers(statusFilter || undefined);
       setDrivers(data);
     } catch (error) {
-      console.error('Error loading drivers:', error);
+      adminLogger.error('Error loading drivers', { error });
+      setLoadError('Erreur lors du chargement des chauffeurs');
     } finally {
       setLoading(false);
     }
   };
 
   const handleApprove = async (id: string) => {
-    await approveDriver(id);
+    const result = await approveDriver(id);
+    if (!result.success) { showError(result.error || 'Erreur lors de l\'approbation'); return; }
+    showSuccess('Chauffeur approuvé');
     loadDrivers();
   };
 
   const handleSuspend = async (id: string) => {
-    await suspendDriver(id);
+    const result = await suspendDriver(id);
+    if (!result.success) { showError(result.error || 'Erreur lors de la suspension'); return; }
+    showSuccess('Chauffeur suspendu');
     loadDrivers();
   };
 
   const handleReject = async (id: string) => {
-    await rejectDriver(id);
+    const result = await rejectDriver(id);
+    if (!result.success) { showError(result.error || 'Erreur lors du rejet'); return; }
+    showSuccess('Chauffeur rejeté');
     loadDrivers();
   };
 
@@ -84,13 +97,6 @@ export default function DriversPage() {
     );
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(value);
-  };
 
   const getRating = (driver: Driver) => {
     if (!driver.rating_count) return '-';
@@ -102,6 +108,13 @@ export default function DriversPage() {
       <Header title="Livreurs" subtitle="Gérez les livreurs de la plateforme" />
 
       <div className="p-6">
+        {loadError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{loadError}</span>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="flex items-center gap-4 mb-6">
           <div className="relative w-80">

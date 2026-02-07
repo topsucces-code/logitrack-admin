@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle, Clock, Eye } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Eye, AlertCircle } from 'lucide-react';
+import { useToast } from '../contexts/ToastContext';
+import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -12,8 +14,10 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function IncidentsPage() {
+  const { showSuccess, showError } = useToast();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [severityFilter, setSeverityFilter] = useState<string>('');
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -34,7 +38,8 @@ export default function IncidentsPage() {
       });
       setIncidents(data);
     } catch (error) {
-      console.error('Error loading incidents:', error);
+      adminLogger.error('Error loading incidents', { error });
+      setLoadError('Erreur lors du chargement des incidents');
     } finally {
       setLoading(false);
     }
@@ -42,7 +47,9 @@ export default function IncidentsPage() {
 
   const handleResolve = async () => {
     if (!selectedIncident || !resolution) return;
-    await updateIncidentStatus(selectedIncident.id, 'resolved', resolution);
+    const result = await updateIncidentStatus(selectedIncident.id, 'resolved', resolution);
+    if (!result.success) { showError(result.error || 'Erreur lors de la résolution'); return; }
+    showSuccess('Incident résolu');
     setShowDetailModal(false);
     setSelectedIncident(null);
     setResolution('');
@@ -50,7 +57,9 @@ export default function IncidentsPage() {
   };
 
   const handleClose = async (id: string) => {
-    await updateIncidentStatus(id, 'closed');
+    const result = await updateIncidentStatus(id, 'closed');
+    if (!result.success) { showError(result.error || 'Erreur lors de la fermeture'); return; }
+    showSuccess('Incident fermé');
     loadIncidents();
   };
 
@@ -103,6 +112,13 @@ export default function IncidentsPage() {
       <Header title="Incidents & Litiges" subtitle="Gérez les incidents de livraison" />
 
       <div className="p-6">
+        {loadError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{loadError}</span>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-6">
           <Card>

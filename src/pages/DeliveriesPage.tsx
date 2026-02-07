@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Search, Eye, MapPin, Package, Clock, CheckCircle, Truck } from 'lucide-react';
+import { Search, Eye, MapPin, Package, Clock, CheckCircle, Truck, AlertCircle } from 'lucide-react';
+import { formatCurrency } from '../utils/format';
+import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
@@ -33,6 +35,7 @@ export default function DeliveriesPage() {
   const [newStatus, setNewStatus] = useState('');
   const [updating, setUpdating] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDeliveries();
@@ -40,6 +43,7 @@ export default function DeliveriesPage() {
 
   const loadDeliveries = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await getDeliveries({
         status: statusFilter || undefined,
@@ -47,7 +51,8 @@ export default function DeliveriesPage() {
       });
       setDeliveries(data);
     } catch (error) {
-      console.error('Error loading deliveries:', error);
+      adminLogger.error('Error loading deliveries', { error });
+      setLoadError('Erreur lors du chargement des livraisons');
     } finally {
       setLoading(false);
     }
@@ -89,13 +94,6 @@ export default function DeliveriesPage() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(value);
-  };
 
   const stats = {
     total: deliveries.length,
@@ -110,6 +108,13 @@ export default function DeliveriesPage() {
       <Header title="Livraisons" subtitle="Suivez toutes les livraisons de la plateforme" />
 
       <div className="p-6">
+        {loadError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{loadError}</span>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="flex items-center gap-4 mb-6">
           <div className="relative w-96">

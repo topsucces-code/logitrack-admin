@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, AlertCircle } from 'lucide-react';
+import { formatCurrency } from '../utils/format';
+import { adminLogger } from '../utils/logger';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import Header from '../components/layout/Header';
 import Card, { CardHeader } from '../components/ui/Card';
@@ -15,6 +17,7 @@ export default function FinancesPage() {
   const [distributionData, setDistributionData] = useState<{ name: string; value: number; color: string }[]>([]);
   const [pendingPayments, setPendingPayments] = useState({ count: 0, total: 0 });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -22,6 +25,7 @@ export default function FinancesPage() {
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [statsData, deliveriesData, revenue, distribution, pending] = await Promise.all([
         getDashboardStats(),
@@ -36,18 +40,11 @@ export default function FinancesPage() {
       setDistributionData(distribution);
       setPendingPayments(pending);
     } catch (error) {
-      console.error('Error loading data:', error);
+      adminLogger.error('Error loading finances data', { error });
+      setLoadError('Erreur lors du chargement des données financières');
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(value);
   };
 
   if (loading) {
@@ -63,6 +60,13 @@ export default function FinancesPage() {
       <Header title="Finances" subtitle="Aperçu financier de la plateforme" />
 
       <div className="p-6 space-y-6">
+        {loadError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{loadError}</span>
+          </div>
+        )}
+
         {/* Main Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card>

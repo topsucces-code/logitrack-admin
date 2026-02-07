@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { formatCurrency } from '../utils/format';
+import { adminLogger } from '../utils/logger';
 import {
   Users,
   Building2,
@@ -10,6 +12,7 @@ import {
   Clock,
   CheckCircle,
   AlertTriangle,
+  AlertCircle,
   ArrowUpRight,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
@@ -24,12 +27,14 @@ export default function DashboardPage() {
   const [deliveryTrendData, setDeliveryTrendData] = useState<{ name: string; livraisons: number }[]>([]);
   const [revenueData, setRevenueData] = useState<{ name: string; revenue: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadStats();
   }, []);
 
   const loadStats = async () => {
+    setLoadError(null);
     try {
       const [data, trend, revenue] = await Promise.all([
         getDashboardStats(),
@@ -40,18 +45,11 @@ export default function DashboardPage() {
       setDeliveryTrendData(trend);
       setRevenueData(revenue);
     } catch (error) {
-      console.error('Error loading stats:', error);
+      adminLogger.error('Error loading stats', { error });
+      setLoadError('Erreur lors du chargement du tableau de bord');
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(value);
   };
 
   if (loading) {
@@ -67,6 +65,13 @@ export default function DashboardPage() {
       <Header title="Dashboard" subtitle="Vue d'ensemble de la plateforme LogiTrack Africa" />
 
       <div className="p-6 space-y-6">
+        {loadError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{loadError}</span>
+          </div>
+        )}
+
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Clients API */}

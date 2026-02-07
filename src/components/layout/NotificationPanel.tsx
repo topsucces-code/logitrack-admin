@@ -3,6 +3,7 @@ import { Bell, Truck, Building2, AlertTriangle, Package, CheckCheck, X } from 'l
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { adminLogger } from '../../utils/logger';
 import type { AdminNotification } from '../../types';
 import { markNotificationRead, markAllNotificationsRead } from '../../services/adminService';
 
@@ -34,20 +35,28 @@ export default function NotificationPanel({ notifications, onClose, onRefresh }:
   }, [onClose]);
 
   const handleClick = async (notification: AdminNotification) => {
-    if (!notification.is_read) {
-      await markNotificationRead(notification.id);
-      onRefresh();
+    try {
+      if (!notification.is_read) {
+        await markNotificationRead(notification.id);
+        onRefresh();
+      }
+      const config = TYPE_CONFIG[notification.type];
+      if (config) {
+        navigate(config.route);
+      }
+      onClose();
+    } catch (error) {
+      adminLogger.error('Error handling notification click', { error });
     }
-    const config = TYPE_CONFIG[notification.type];
-    if (config) {
-      navigate(config.route);
-    }
-    onClose();
   };
 
   const handleMarkAllRead = async () => {
-    await markAllNotificationsRead();
-    onRefresh();
+    try {
+      await markAllNotificationsRead();
+      onRefresh();
+    } catch (error) {
+      adminLogger.error('Error marking all notifications read', { error });
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.is_read).length;

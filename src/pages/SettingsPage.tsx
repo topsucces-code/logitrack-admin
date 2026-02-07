@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Save, Bell, Shield, Key, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
 import Card, { CardHeader } from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -44,7 +45,7 @@ export default function SettingsPage() {
         api: { ...DEFAULT_SETTINGS.api, ...(data.api || {}) } as SettingsState['api'],
       });
     } catch (error) {
-      console.error('Error loading settings:', error);
+      adminLogger.error('Error loading settings', { error });
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Building2, Users, Package, CheckCircle, Ban, Eye, AlertCircle } from 'lucide-react';
+import { useToast } from '../contexts/ToastContext';
+import { formatCurrency } from '../utils/format';
+import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -17,8 +20,10 @@ import {
 import type { DeliveryCompany } from '../types';
 
 export default function CompaniesPage() {
+  const { showSuccess, showError } = useToast();
   const [companies, setCompanies] = useState<DeliveryCompany[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -55,11 +60,13 @@ export default function CompaniesPage() {
 
   const loadCompanies = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await getDeliveryCompanies(statusFilter || undefined);
       setCompanies(data);
     } catch (error) {
-      console.error('Error loading companies:', error);
+      adminLogger.error('Error loading companies', { error });
+      setLoadError('Erreur lors du chargement des entreprises');
     } finally {
       setLoading(false);
     }
@@ -89,12 +96,16 @@ export default function CompaniesPage() {
   };
 
   const handleActivate = async (id: string) => {
-    await activateDeliveryCompany(id);
+    const result = await activateDeliveryCompany(id);
+    if (!result.success) { showError(result.error || 'Erreur lors de l\'activation'); return; }
+    showSuccess('Entreprise activée');
     loadCompanies();
   };
 
   const handleSuspend = async (id: string) => {
-    await suspendDeliveryCompany(id);
+    const result = await suspendDeliveryCompany(id);
+    if (!result.success) { showError(result.error || 'Erreur lors de la suspension'); return; }
+    showSuccess('Entreprise suspendue');
     loadCompanies();
   };
 
@@ -119,13 +130,6 @@ export default function CompaniesPage() {
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(value);
-  };
 
   return (
     <div className="min-h-screen">
@@ -135,6 +139,13 @@ export default function CompaniesPage() {
       />
 
       <div className="p-6">
+        {loadError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{loadError}</span>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">

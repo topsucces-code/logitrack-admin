@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { adminLogger } from '../utils/logger';
 import type {
   BusinessClient,
   ApiKey,
@@ -97,7 +98,7 @@ export async function getBusinessClients(): Promise<BusinessClient[]> {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching business clients:', error);
+    adminLogger.error('Error fetching business clients', { error });
     return [];
   }
   return data || [];
@@ -167,7 +168,7 @@ export async function getApiKeys(clientId?: string): Promise<ApiKey[]> {
 
   const { data, error } = await query;
   if (error) {
-    console.error('Error fetching API keys:', error);
+    adminLogger.error('Error fetching API keys', { error });
     return [];
   }
   return data || [];
@@ -235,7 +236,7 @@ export async function getDeliveryCompanies(status?: string): Promise<DeliveryCom
 
   const { data, error } = await query;
   if (error) {
-    console.error('Error fetching delivery companies:', error);
+    adminLogger.error('Error fetching delivery companies', { error });
     return [];
   }
   return data || [];
@@ -311,7 +312,7 @@ export async function getDrivers(status?: string): Promise<Driver[]> {
 
   const { data, error } = await query;
   if (error) {
-    console.error('Error fetching drivers:', error);
+    adminLogger.error('Error fetching drivers', { error });
     return [];
   }
   return data || [];
@@ -389,7 +390,7 @@ export async function getDeliveries(options?: {
 
   const { data, error } = await query;
   if (error) {
-    console.error('Error fetching deliveries:', error);
+    adminLogger.error('Error fetching deliveries', { error });
     return [];
   }
 
@@ -444,7 +445,7 @@ export async function getZones(): Promise<Zone[]> {
     .order('name');
 
   if (error) {
-    console.error('Error fetching zones:', error);
+    adminLogger.error('Error fetching zones', { error });
     return [];
   }
   return data || [];
@@ -503,7 +504,7 @@ export async function getIncidents(options?: {
 
   const { data, error } = await query;
   if (error) {
-    console.error('Error fetching incidents:', error);
+    adminLogger.error('Error fetching incidents', { error });
     return [];
   }
   return data || [];
@@ -543,7 +544,7 @@ export async function getSettings(): Promise<Record<string, Record<string, unkno
     .select('key, value');
 
   if (error) {
-    console.error('Error fetching settings:', error);
+    adminLogger.error('Error fetching settings', { error });
     return {};
   }
 
@@ -583,7 +584,7 @@ export async function getRevenueByDay(days: number = 7): Promise<{ date: string;
     .gte('created_at', startDate.toISOString());
 
   if (error) {
-    console.error('Error fetching revenue by day:', error);
+    adminLogger.error('Error fetching revenue by day', { error });
     return [];
   }
 
@@ -618,7 +619,7 @@ export async function getRevenueDistribution(): Promise<{ name: string; value: n
     .in('status', ['delivered', 'completed']);
 
   if (error) {
-    console.error('Error fetching distribution:', error);
+    adminLogger.error('Error fetching distribution', { error });
     return [
       { name: 'Livreurs', value: 0, color: '#22c55e' },
       { name: 'Entreprises', value: 0, color: '#3b82f6' },
@@ -663,7 +664,7 @@ export async function getDeliveryTrend(days: number = 7): Promise<{ name: string
     .gte('created_at', startDate.toISOString());
 
   if (error) {
-    console.error('Error fetching delivery trend:', error);
+    adminLogger.error('Error fetching delivery trend', { error });
     return [];
   }
 
@@ -700,7 +701,7 @@ export async function getRevenueTrend(months: number = 6): Promise<{ name: strin
     .gte('created_at', startDate.toISOString());
 
   if (error) {
-    console.error('Error fetching revenue trend:', error);
+    adminLogger.error('Error fetching revenue trend', { error });
     return [];
   }
 
@@ -733,7 +734,7 @@ export async function getPendingPayments(): Promise<{ count: number; total: numb
     .eq('payment_status', 'pending');
 
   if (error) {
-    console.error('Error fetching pending payments:', error);
+    adminLogger.error('Error fetching pending payments', { error });
     return { count: 0, total: 0 };
   }
 
@@ -755,7 +756,7 @@ export async function getNotifications(limit: number = 20): Promise<AdminNotific
     .limit(limit);
 
   if (error) {
-    console.error('Error fetching notifications:', error);
+    adminLogger.error('Error fetching notifications', { error });
     return [];
   }
   return data || [];
@@ -768,7 +769,7 @@ export async function getUnreadCount(): Promise<number> {
     .eq('is_read', false);
 
   if (error) {
-    console.error('Error fetching unread count:', error);
+    adminLogger.error('Error fetching unread count', { error });
     return 0;
   }
   return count || 0;

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Eye, CheckCircle, XCircle, Clock, FileText, User, AlertCircle } from 'lucide-react';
+import { useToast } from '../contexts/ToastContext';
+import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
@@ -33,6 +35,7 @@ interface IdentityDocument {
 }
 
 export default function DocumentReviewPage() {
+  const { showSuccess, showError } = useToast();
   const [documents, setDocuments] = useState<IdentityDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('pending');
@@ -50,7 +53,7 @@ export default function DocumentReviewPage() {
     setLoading(true);
     let query = supabase
       .from('identity_documents')
-      .select('*, driver:logitrack_drivers(full_name, phone, photo_url)')
+      .select('*, driver:drivers(full_name, phone, photo_url)')
       .order('created_at', { ascending: false })
       .limit(100);
 
@@ -60,7 +63,7 @@ export default function DocumentReviewPage() {
 
     const { data, error } = await query;
     if (error) {
-      console.error('Error loading documents:', error);
+      adminLogger.error('Error loading documents', { error });
       setLoadError('Erreur lors du chargement des documents');
     } else {
       setLoadError(null);
@@ -72,40 +75,48 @@ export default function DocumentReviewPage() {
   async function handleApprove(doc: IdentityDocument) {
     setProcessing(true);
 
-    // Update document
-    await supabase
-      .from('identity_documents')
-      .update({
-        verification_status: 'verified',
-        verification_score: 100,
-        verified_at: new Date().toISOString(),
-      })
-      .eq('id', doc.id);
+    try {
+      const { error: docError } = await supabase
+        .from('identity_documents')
+        .update({
+          verification_status: 'verified',
+          verification_score: 100,
+          verified_at: new Date().toISOString(),
+        })
+        .eq('id', doc.id);
 
-    // Update driver
-    await supabase
-      .from('logitrack_drivers')
-      .update({
-        is_identity_verified: true,
-        verification_status: 'verified',
-      })
-      .eq('id', doc.driver_id);
+      if (docError) throw docError;
 
-    // Add verification badge
-    await supabase
-      .from('driver_badges')
-      .upsert({
-        driver_id: doc.driver_id,
-        badge_id: 'verified_identity',
-        name: 'Identité Vérifiée',
-        description: 'Document d\'identité vérifié avec succès',
-        icon: '✓',
-        earned_at: new Date().toISOString(),
-      });
+      const { error: driverError } = await supabase
+        .from('logitrack_drivers')
+        .update({
+          is_identity_verified: true,
+          verification_status: 'verified',
+        })
+        .eq('id', doc.driver_id);
 
-    setProcessing(false);
-    setShowModal(false);
-    loadDocuments();
+      if (driverError) throw driverError;
+
+      await supabase
+        .from('driver_badges')
+        .upsert({
+          driver_id: doc.driver_id,
+          badge_id: 'verified_identity',
+          name: 'Identité Vérifiée',
+          description: 'Document d\'identité vérifié avec succès',
+          icon: '✓',
+          earned_at: new Date().toISOString(),
+        });
+
+      showSuccess('Document approuvé');
+      setShowModal(false);
+      loadDocuments();
+    } catch (err) {
+      adminLogger.error('Error approving document', { error: err });
+      showError('Erreur lors de l\'approbation du document');
+    } finally {
+      setProcessing(false);
+    }
   }
 
   async function handleReject(doc: IdentityDocument) {
@@ -113,23 +124,34 @@ export default function DocumentReviewPage() {
 
     setProcessing(true);
 
-    await supabase
-      .from('identity_documents')
-      .update({
-        verification_status: 'rejected',
-        rejection_reason: rejectionReason,
-      })
-      .eq('id', doc.id);
+    try {
+      const { error: docError } = await supabase
+        .from('identity_documents')
+        .update({
+          verification_status: 'rejected',
+          rejection_reason: rejectionReason,
+        })
+        .eq('id', doc.id);
 
-    await supabase
-      .from('logitrack_drivers')
-      .update({ verification_status: 'rejected' })
-      .eq('id', doc.driver_id);
+      if (docError) throw docError;
 
-    setProcessing(false);
-    setShowModal(false);
-    setRejectionReason('');
-    loadDocuments();
+      const { error: driverError } = await supabase
+        .from('logitrack_drivers')
+        .update({ verification_status: 'rejected' })
+        .eq('id', doc.driver_id);
+
+      if (driverError) throw driverError;
+
+      showSuccess('Document rejeté');
+      setShowModal(false);
+      setRejectionReason('');
+      loadDocuments();
+    } catch (err) {
+      adminLogger.error('Error rejecting document', { error: err });
+      showError('Erreur lors du rejet du document');
+    } finally {
+      setProcessing(false);
+    }
   }
 
   function getStatusBadge(status: string) {

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Key, Ban, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { useToast } from '../contexts/ToastContext';
+import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -20,8 +22,10 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function ClientsPage() {
+  const { showSuccess, showError } = useToast();
   const [clients, setClients] = useState<BusinessClient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
@@ -50,11 +54,13 @@ export default function ClientsPage() {
 
   const loadClients = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await getBusinessClients();
       setClients(data);
     } catch (error) {
-      console.error('Error loading clients:', error);
+      adminLogger.error('Error loading clients', { error });
+      setLoadError('Erreur lors du chargement des clients');
     } finally {
       setLoading(false);
     }
@@ -86,11 +92,14 @@ export default function ClientsPage() {
   };
 
   const handleToggleStatus = async (client: BusinessClient) => {
-    if (client.status === 'active') {
-      await suspendBusinessClient(client.id);
-    } else {
-      await activateBusinessClient(client.id);
+    const result = client.status === 'active'
+      ? await suspendBusinessClient(client.id)
+      : await activateBusinessClient(client.id);
+    if (!result.success) {
+      showError(result.error || 'Erreur lors du changement de statut');
+      return;
     }
+    showSuccess(client.status === 'active' ? 'Client suspendu' : 'Client activé');
     loadClients();
   };
 
@@ -129,6 +138,13 @@ export default function ClientsPage() {
       <Header title="Clients API" subtitle="Gérez les entreprises utilisant l'API LogiTrack" />
 
       <div className="p-6">
+        {loadError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{loadError}</span>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex items-center justify-between mb-6">
           <div className="relative w-80">

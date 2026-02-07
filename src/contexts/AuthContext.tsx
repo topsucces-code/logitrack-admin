@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
+import { authLogger } from '../utils/logger';
 import type { User, Session } from '@supabase/supabase-js';
 import type { AdminUser } from '../types';
 
@@ -37,6 +38,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setLoading(false);
       }
+    }).catch((err) => {
+      authLogger.error('Error getting session', { error: err });
+      setLoading(false);
     });
 
     // Listen for auth changes
@@ -63,13 +67,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (error) {
-        console.error('Error fetching admin user:', error);
+        authLogger.error('Error fetching admin user', { error });
         setAdminUser(null);
       } else {
         setAdminUser(data);
       }
     } catch (err) {
-      console.error('Error in fetchAdminUser:', err);
+      authLogger.error('Error in fetchAdminUser', { error: err });
     } finally {
       setLoading(false);
     }
@@ -149,13 +153,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
       if (adminError) {
-        console.error('Admin creation error:', adminError);
+        authLogger.warn('Admin creation error', { error: adminError });
         // Don't return error - user can still login
       }
 
       return {};
     } catch (err) {
-      console.error('SignUp exception:', err);
+      authLogger.error('SignUp exception', { error: err });
       return { error: 'Erreur lors de l\'inscription' };
     }
   };

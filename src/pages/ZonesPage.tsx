@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Edit2, MapPin, AlertCircle } from 'lucide-react';
+import { useToast } from '../contexts/ToastContext';
+import { formatCurrency } from '../utils/format';
+import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -11,8 +14,10 @@ import { getZones, createZone, updateZone } from '../services/adminService';
 import type { Zone } from '../types';
 
 export default function ZonesPage() {
+  const { showSuccess, showError } = useToast();
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
@@ -37,7 +42,8 @@ export default function ZonesPage() {
       const data = await getZones();
       setZones(data);
     } catch (error) {
-      console.error('Error loading zones:', error);
+      adminLogger.error('Error loading zones', { error });
+      setLoadError('Erreur lors du chargement des zones');
     } finally {
       setLoading(false);
     }
@@ -69,7 +75,9 @@ export default function ZonesPage() {
   };
 
   const handleToggleActive = async (zone: Zone) => {
-    await updateZone(zone.id, { is_active: !zone.is_active });
+    const result = await updateZone(zone.id, { is_active: !zone.is_active });
+    if (!result.success) { showError(result.error || 'Erreur lors de la mise à jour'); return; }
+    showSuccess(zone.is_active ? 'Zone désactivée' : 'Zone activée');
     loadZones();
   };
 
@@ -104,19 +112,19 @@ export default function ZonesPage() {
       zone.city.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(value);
-  };
 
   return (
     <div className="min-h-screen">
       <Header title="Zones de livraison" subtitle="Gérez les zones et la tarification" />
 
       <div className="p-6">
+        {loadError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{loadError}</span>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex items-center justify-between mb-6">
           <div className="relative w-80">
