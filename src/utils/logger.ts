@@ -86,5 +86,6 @@ export const logger = {
 // Pre-configured scoped loggers
 export const authLogger = logger.scope('Auth');
 export const adminLogger = logger.scope('Admin');
+export const chatLogger = logger.scope('Chat');
 
 export default logger;

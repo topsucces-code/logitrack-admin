@@ -8,6 +8,7 @@ import {
   MapPin,
   Wallet,
   AlertTriangle,
+  MessageCircle,
   Settings,
   LogOut,
   Key,
@@ -24,6 +25,7 @@ const navigation = [
   { name: 'Zones', href: '/zones', icon: MapPin },
   { name: 'Finances', href: '/finances', icon: Wallet },
   { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
+  { name: 'Support Chat', href: '/support-chat', icon: MessageCircle },
   { name: 'Documents', href: '/documents', icon: FileCheck },
   { name: 'Paramètres', href: '/settings', icon: Settings },
 ];
