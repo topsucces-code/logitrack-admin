@@ -1,4 +1,55 @@
 // ========================================
+// LogiTrack Admin - Types
+// Source de vérité : shared-types.ts (enums PostgreSQL)
+// ========================================
+
+import type {
+  DeliveryStatus,
+  DriverStatus,
+  VehicleType,
+  PackageSize,
+  PaymentMethod,
+  PaymentStatus,
+  TransactionType,
+  DriverType,
+  DeliveryCompanyStatus,
+  CompanyTransactionType,
+  BusinessClientPlan,
+  BusinessClientStatus,
+  AdminRole,
+  CompanyUserRole,
+  PayoutMethod,
+  IncidentReporterType,
+  IncidentPriority,
+  IncidentStatus,
+  IncidentTypeCode,
+  ApiKeyEnvironment,
+} from './shared-types';
+
+export type {
+  DeliveryStatus,
+  DriverStatus,
+  VehicleType,
+  PackageSize,
+  PaymentMethod,
+  PaymentStatus,
+  TransactionType,
+  DriverType,
+  DeliveryCompanyStatus,
+  CompanyTransactionType,
+  BusinessClientPlan,
+  BusinessClientStatus,
+  AdminRole,
+  CompanyUserRole,
+  PayoutMethod,
+  IncidentReporterType,
+  IncidentPriority,
+  IncidentStatus,
+  IncidentTypeCode,
+  ApiKeyEnvironment,
+};
+
+// ========================================
 // Business Clients (API Clients)
 // ========================================
 
@@ -8,8 +59,8 @@ export interface BusinessClient {
   contact_email: string;
   contact_phone?: string;
   webhook_url?: string;
-  plan: 'starter' | 'business' | 'enterprise';
-  status: 'active' | 'suspended' | 'pending';
+  plan: BusinessClientPlan;
+  status: BusinessClientStatus;
   settings: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -20,7 +71,7 @@ export interface ApiKey {
   client_id: string;
   key_prefix: string;
   name: string;
-  environment: 'live' | 'test';
+  environment: ApiKeyEnvironment;
   permissions: string[];
   is_active: boolean;
   last_used_at?: string;
@@ -47,7 +98,7 @@ export interface DeliveryCompany {
   owner_phone?: string;
   owner_email?: string;
   logo_url?: string;
-  status: 'pending' | 'active' | 'suspended' | 'terminated';
+  status: DeliveryCompanyStatus;
   commission_rate: number;
   min_commission: number;
   can_set_custom_rates: boolean;
@@ -60,7 +111,7 @@ export interface DeliveryCompany {
   completed_deliveries: number;
   rating_sum: number;
   rating_count: number;
-  payout_method: 'mobile_money' | 'bank_transfer';
+  payout_method: PayoutMethod;
   momo_provider?: string;
   momo_number?: string;
   api_enabled: boolean;
@@ -77,7 +128,7 @@ export interface CompanyUser {
   full_name: string;
   email: string;
   phone?: string;
-  role: 'owner' | 'admin' | 'manager' | 'dispatcher' | 'accountant';
+  role: CompanyUserRole;
   permissions: string[];
   is_active: boolean;
   last_login_at?: string;
@@ -87,7 +138,7 @@ export interface CompanyUser {
 export interface CompanyTransaction {
   id: string;
   company_id: string;
-  type: 'delivery_earning' | 'commission_deduction' | 'withdrawal' | 'bonus' | 'penalty' | 'adjustment' | 'refund';
+  type: CompanyTransactionType;
   amount: number;
   balance_before: number;
   balance_after: number;
@@ -105,13 +156,13 @@ export interface Driver {
   id: string;
   user_id: string;
   company_id?: string;
-  driver_type: 'independent' | 'company_employed' | 'freelance';
+  driver_type: DriverType;
   full_name: string;
   phone: string;
   email?: string;
-  vehicle_type: string;
+  vehicle_type: VehicleType;
   vehicle_plate?: string;
-  status: 'pending' | 'approved' | 'suspended' | 'rejected';
+  status: DriverStatus;
   is_online: boolean;
   is_available: boolean;
   current_latitude?: number;
@@ -131,7 +182,7 @@ export interface Driver {
 export interface DriverTransaction {
   id: string;
   driver_id: string;
-  type: 'delivery_earning' | 'withdrawal' | 'bonus' | 'penalty' | 'adjustment';
+  type: TransactionType;
   amount: number;
   balance_before: number;
   balance_after: number;
@@ -164,14 +215,14 @@ export interface Delivery {
   recipient_name?: string;
   recipient_phone?: string;
   package_description?: string;
-  package_size?: 'small' | 'medium' | 'large' | 'extra_large';
+  package_size?: PackageSize;
   delivery_fee: number;
   total_price: number;
   driver_earnings?: number;
   company_earnings?: number;
   platform_fee?: number;
-  payment_method?: 'cash' | 'mobile_money' | 'card' | 'wallet';
-  payment_status?: 'pending' | 'paid' | 'failed';
+  payment_method?: PaymentMethod;
+  payment_status?: PaymentStatus;
   notes?: string;
   scheduled_pickup_time?: string;
   scheduled_delivery_time?: string;
@@ -183,17 +234,6 @@ export interface Delivery {
   company?: { company_name: string };
   driver?: { full_name: string; phone: string };
 }
-
-export type DeliveryStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'assigned'
-  | 'picked_up'
-  | 'in_transit'
-  | 'arrived'
-  | 'delivered'
-  | 'cancelled'
-  | 'failed';
 
 // ========================================
 // Zones
@@ -232,11 +272,11 @@ export interface ZonePricing {
 export interface Incident {
   id: string;
   delivery_id: string;
-  reported_by_type: 'driver' | 'customer' | 'vendor' | 'system';
+  reported_by_type: IncidentReporterType;
   reported_by_id?: string;
-  incident_type: IncidentType;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  status: 'open' | 'investigating' | 'resolved' | 'closed' | 'escalated';
+  incident_type: IncidentTypeCode;
+  severity: IncidentPriority;
+  status: IncidentStatus;
   title: string;
   description: string;
   resolution?: string;
@@ -247,15 +287,8 @@ export interface Incident {
   delivery?: Delivery;
 }
 
-export type IncidentType =
-  | 'package_damaged'
-  | 'package_lost'
-  | 'delivery_delayed'
-  | 'wrong_address'
-  | 'customer_unavailable'
-  | 'driver_misconduct'
-  | 'payment_issue'
-  | 'other';
+// Backward compatibility alias
+export type IncidentType = IncidentTypeCode;
 
 // ========================================
 // Dashboard Stats
@@ -295,7 +328,7 @@ export interface AdminUser {
   id: string;
   email: string;
   full_name: string;
-  role: 'super_admin' | 'admin' | 'support' | 'viewer';
+  role: AdminRole;
   permissions: string[];
   is_active: boolean;
   last_login_at?: string;

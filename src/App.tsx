@@ -15,6 +15,7 @@ import ZonesPage from './pages/ZonesPage';
 import FinancesPage from './pages/FinancesPage';
 import IncidentsPage from './pages/IncidentsPage';
 import SettingsPage from './pages/SettingsPage';
+import DocumentReviewPage from './pages/DocumentReviewPage';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -86,6 +87,7 @@ function AppRoutes() {
         <Route path="/zones" element={<ZonesPage />} />
         <Route path="/finances" element={<FinancesPage />} />
         <Route path="/incidents" element={<IncidentsPage />} />
+        <Route path="/documents" element={<DocumentReviewPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

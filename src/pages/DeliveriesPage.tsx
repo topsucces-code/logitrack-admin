@@ -56,12 +56,15 @@ export default function DeliveriesPage() {
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info'; label: string }> = {
       pending: { variant: 'warning', label: 'En attente' },
-      confirmed: { variant: 'info', label: 'Confirmée' },
+      searching: { variant: 'warning', label: 'Recherche livreur' },
       assigned: { variant: 'info', label: 'Assignée' },
+      accepted: { variant: 'info', label: 'Acceptée' },
+      picking_up: { variant: 'info', label: 'En route pickup' },
       picked_up: { variant: 'info', label: 'Récupérée' },
       in_transit: { variant: 'info', label: 'En transit' },
-      arrived: { variant: 'info', label: 'Arrivée' },
+      arriving: { variant: 'info', label: 'Arrivée' },
       delivered: { variant: 'success', label: 'Livrée' },
+      completed: { variant: 'success', label: 'Terminée' },
       cancelled: { variant: 'danger', label: 'Annulée' },
       failed: { variant: 'danger', label: 'Échouée' },
     };

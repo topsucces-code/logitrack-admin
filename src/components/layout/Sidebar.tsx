@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   Key,
+  FileCheck,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -23,6 +24,7 @@ const navigation = [
   { name: 'Zones', href: '/zones', icon: MapPin },
   { name: 'Finances', href: '/finances', icon: Wallet },
   { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
+  { name: 'Documents', href: '/documents', icon: FileCheck },
   { name: 'Paramètres', href: '/settings', icon: Settings },
 ];
 
