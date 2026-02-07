@@ -55,6 +55,8 @@ export default function CompaniesPage() {
         setDefaultCommission(rate);
         setFormData(prev => ({ ...prev, commission_rate: rate }));
       }
+    }).catch((err) => {
+      adminLogger.error('Error loading settings', { error: err });
     });
   }, []);
 

@@ -97,7 +97,7 @@ export default function DocumentReviewPage() {
 
       if (driverError) throw driverError;
 
-      await supabase
+      const { error: badgeError } = await supabase
         .from('driver_badges')
         .upsert({
           driver_id: doc.driver_id,
@@ -107,6 +107,10 @@ export default function DocumentReviewPage() {
           icon: '✓',
           earned_at: new Date().toISOString(),
         });
+
+      if (badgeError) {
+        adminLogger.error('Error upserting driver badge', { error: badgeError });
+      }
 
       showSuccess('Document approuvé');
       setShowModal(false);

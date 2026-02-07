@@ -60,6 +60,7 @@ export default function LoginPage() {
         // Auto login after signup
         const loginResult = await signIn(cleanPhone, password);
         if (!loginResult.error) {
+          setLoading(false);
           navigate('/');
         } else {
           setIsSignUp(false);
