@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Key, Ban, CheckCircle } from 'lucide-react';
+import { Plus, Search, Key, Ban, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -27,6 +27,9 @@ export default function ClientsPage() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<BusinessClient | null>(null);
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [generatingKey, setGeneratingKey] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [formData, setFormData] = useState<{
     company_name: string;
     contact_email: string;
@@ -58,20 +61,28 @@ export default function ClientsPage() {
   };
 
   const handleCreateClient = async () => {
+    setCreateError(null);
     const result = await createBusinessClient(formData);
     if (result.success) {
       setShowCreateModal(false);
       setFormData({ company_name: '', contact_email: '', contact_phone: '', webhook_url: '', plan: 'starter' as const });
       loadClients();
+    } else {
+      setCreateError(result.error || 'Erreur lors de la création du client');
     }
   };
 
   const handleGenerateApiKey = async () => {
     if (!selectedClient) return;
+    setGeneratingKey(true);
+    setApiKeyError(null);
     const result = await createApiKey(selectedClient.id, 'Production Key', 'live');
     if (result.success && result.apiKey) {
       setNewApiKey(result.apiKey);
+    } else {
+      setApiKeyError(result.error || 'Erreur lors de la génération de la clé API');
     }
+    setGeneratingKey(false);
   };
 
   const handleToggleStatus = async (client: BusinessClient) => {
@@ -211,11 +222,17 @@ export default function ClientsPage() {
       {/* Create Client Modal */}
       <Modal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => { setShowCreateModal(false); setCreateError(null); }}
         title="Nouveau client API"
         size="md"
       >
         <div className="space-y-4">
+          {createError && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+              <p className="text-sm text-red-700">{createError}</p>
+            </div>
+          )}
           <Input
             label="Nom de l'entreprise"
             value={formData.company_name}
@@ -269,6 +286,7 @@ export default function ClientsPage() {
           setShowApiKeyModal(false);
           setNewApiKey(null);
           setSelectedClient(null);
+          setApiKeyError(null);
         }}
         title={`Clés API - ${selectedClient?.company_name}`}
         size="md"
@@ -291,9 +309,19 @@ export default function ClientsPage() {
               <p className="text-sm text-gray-600">
                 Générez une nouvelle clé API pour permettre à ce client d'accéder à l'API LogiTrack.
               </p>
-              <Button onClick={handleGenerateApiKey} className="w-full">
-                <Key className="w-4 h-4 mr-2" />
-                Générer une nouvelle clé API
+              {apiKeyError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <p className="text-sm text-red-700">{apiKeyError}</p>
+                </div>
+              )}
+              <Button onClick={handleGenerateApiKey} className="w-full" disabled={generatingKey}>
+                {generatingKey ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Key className="w-4 h-4 mr-2" />
+                )}
+                {generatingKey ? 'Génération en cours...' : 'Générer une nouvelle clé API'}
               </Button>
             </>
           )}

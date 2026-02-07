@@ -64,19 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Error fetching admin user:', error);
-        // Create admin user if not exists (for initial setup)
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData.user) {
-          const newAdmin: Partial<AdminUser> = {
-            id: userId,
-            email: userData.user.phone || userData.user.email || '',
-            full_name: userData.user.user_metadata?.full_name || 'Admin',
-            role: 'super_admin',
-            permissions: ['*'],
-            is_active: true,
-          };
-          setAdminUser(newAdmin as AdminUser);
-        }
+        setAdminUser(null);
       } else {
         setAdminUser(data);
       }

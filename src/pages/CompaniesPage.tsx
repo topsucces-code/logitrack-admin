@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Building2, Users, Package, CheckCircle, Ban, Eye } from 'lucide-react';
+import { Plus, Search, Building2, Users, Package, CheckCircle, Ban, Eye, AlertCircle } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -12,6 +12,7 @@ import {
   createDeliveryCompany,
   activateDeliveryCompany,
   suspendDeliveryCompany,
+  getSettings,
 } from '../services/adminService';
 import type { DeliveryCompany } from '../types';
 
@@ -23,6 +24,8 @@ export default function CompaniesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<DeliveryCompany | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [defaultCommission, setDefaultCommission] = useState(15);
   const [formData, setFormData] = useState({
     company_name: '',
     legal_name: '',
@@ -40,6 +43,16 @@ export default function CompaniesPage() {
     loadCompanies();
   }, [statusFilter]);
 
+  useEffect(() => {
+    getSettings().then((settings) => {
+      const rate = settings?.commission?.platform_percent;
+      if (typeof rate === 'number') {
+        setDefaultCommission(rate);
+        setFormData(prev => ({ ...prev, commission_rate: rate }));
+      }
+    });
+  }, []);
+
   const loadCompanies = async () => {
     setLoading(true);
     try {
@@ -53,6 +66,7 @@ export default function CompaniesPage() {
   };
 
   const handleCreateCompany = async () => {
+    setCreateError(null);
     const result = await createDeliveryCompany(formData);
     if (result.success) {
       setShowCreateModal(false);
@@ -66,9 +80,11 @@ export default function CompaniesPage() {
         owner_name: '',
         owner_phone: '',
         owner_email: '',
-        commission_rate: 15,
+        commission_rate: defaultCommission,
       });
       loadCompanies();
+    } else {
+      setCreateError(result.error || 'Erreur lors de la création de l\'entreprise');
     }
   };
 
@@ -292,10 +308,16 @@ export default function CompaniesPage() {
       {/* Create Modal */}
       <Modal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => { setShowCreateModal(false); setCreateError(null); }}
         title="Nouvelle entreprise de livraison"
         size="lg"
       >
+        {createError && (
+          <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg">
+            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <p className="text-sm text-red-700">{createError}</p>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-4">
           <Input
             label="Nom commercial"

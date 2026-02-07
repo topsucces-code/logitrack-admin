@@ -312,14 +312,6 @@ export interface DashboardStats {
   platformCommission: number;
 }
 
-export interface ApiUsageStats {
-  clientId: string;
-  companyName: string;
-  totalRequests: number;
-  todayRequests: number;
-  plan: string;
-}
-
 // ========================================
 // Admin User
 // ========================================

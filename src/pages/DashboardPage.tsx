@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users,
   Building2,
@@ -18,6 +19,7 @@ import { getDashboardStats, getDeliveryTrend, getRevenueTrend } from '../service
 import type { DashboardStats } from '../types';
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [deliveryTrendData, setDeliveryTrendData] = useState<{ name: string; livraisons: number }[]>([]);
   const [revenueData, setRevenueData] = useState<{ name: string; revenue: number }[]>([]);
@@ -254,12 +256,12 @@ export default function DashboardPage() {
           <Card>
             <CardHeader title="Actions rapides" />
             <div className="grid grid-cols-2 gap-4">
-              <button className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left">
+              <button onClick={() => navigate('/drivers')} className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left">
                 <AlertTriangle className="w-6 h-6 text-yellow-500 mb-2" />
                 <p className="font-medium text-gray-900">Livreurs en attente</p>
                 <p className="text-sm text-gray-500">{stats?.pendingDrivers || 0} à vérifier</p>
               </button>
-              <button className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left">
+              <button onClick={() => navigate('/companies')} className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left">
                 <Building2 className="w-6 h-6 text-purple-500 mb-2" />
                 <p className="font-medium text-gray-900">Entreprises en attente</p>
                 <p className="text-sm text-gray-500">{stats?.pendingCompanies || 0} à valider</p>

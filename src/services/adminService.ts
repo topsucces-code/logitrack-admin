@@ -13,7 +13,7 @@ import type {
   Zone,
   Incident,
   DashboardStats,
-  ApiUsageStats,
+
   AdminNotification,
 } from '../types';
 
@@ -531,45 +531,6 @@ export async function updateIncidentStatus(
 
   if (error) return { success: false, error: error.message };
   return { success: true };
-}
-
-// ========================================
-// API Usage Stats
-// ========================================
-
-export async function getApiUsageStats(): Promise<ApiUsageStats[]> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayISO = today.toISOString();
-
-  const { data: clients } = await supabase
-    .from('logitrack_business_clients')
-    .select('id, company_name, plan');
-
-  if (!clients) return [];
-
-  const { data: apiKeys } = await supabase
-    .from('logitrack_client_api_keys')
-    .select('client_id, total_requests');
-
-  const { data: todayRequests } = await supabase
-    .from('logitrack_api_requests')
-    .select('client_id')
-    .gte('created_at', todayISO);
-
-  return clients.map(client => {
-    const clientKeys = (apiKeys || []).filter(k => k.client_id === client.id);
-    const totalRequests = clientKeys.reduce((sum, k) => sum + (k.total_requests || 0), 0);
-    const clientTodayRequests = (todayRequests || []).filter(r => r.client_id === client.id).length;
-
-    return {
-      clientId: client.id,
-      companyName: client.company_name,
-      totalRequests,
-      todayRequests: clientTodayRequests,
-      plan: client.plan,
-    };
-  }).sort((a, b) => b.totalRequests - a.totalRequests);
 }
 
 // ========================================

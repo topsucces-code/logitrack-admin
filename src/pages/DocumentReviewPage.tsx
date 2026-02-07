@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Eye, CheckCircle, XCircle, Clock, FileText, User } from 'lucide-react';
+import { Eye, CheckCircle, XCircle, Clock, FileText, User, AlertCircle } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
@@ -40,6 +40,7 @@ export default function DocumentReviewPage() {
   const [showModal, setShowModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDocuments();
@@ -57,7 +58,13 @@ export default function DocumentReviewPage() {
       query = query.eq('verification_status', statusFilter);
     }
 
-    const { data } = await query;
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error loading documents:', error);
+      setLoadError('Erreur lors du chargement des documents');
+    } else {
+      setLoadError(null);
+    }
     setDocuments((data as IdentityDocument[]) || []);
     setLoading(false);
   }
@@ -164,6 +171,13 @@ export default function DocumentReviewPage() {
       />
 
       <div className="p-6">
+        {loadError && (
+          <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg">
+            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <p className="text-sm text-red-700">{loadError}</p>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="flex items-center gap-4 mb-6">
           <select

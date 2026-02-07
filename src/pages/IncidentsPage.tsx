@@ -307,6 +307,9 @@ export default function IncidentsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   rows={3}
                 />
+                {!resolution && (
+                  <p className="text-sm text-gray-400 mt-1">Veuillez saisir une résolution avant de valider</p>
+                )}
               </div>
             )}
 

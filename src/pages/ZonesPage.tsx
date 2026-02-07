@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Edit2, MapPin } from 'lucide-react';
+import { Plus, Search, Edit2, MapPin, AlertCircle } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -16,6 +16,7 @@ export default function ZonesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     city: '',
@@ -43,21 +44,27 @@ export default function ZonesPage() {
   };
 
   const handleCreateZone = async () => {
+    setFormError(null);
     const result = await createZone(formData);
     if (result.success) {
       setShowCreateModal(false);
       resetForm();
       loadZones();
+    } else {
+      setFormError(result.error || 'Erreur lors de la création de la zone');
     }
   };
 
   const handleUpdateZone = async () => {
     if (!editingZone) return;
+    setFormError(null);
     const result = await updateZone(editingZone.id, formData);
     if (result.success) {
       setEditingZone(null);
       resetForm();
       loadZones();
+    } else {
+      setFormError(result.error || 'Erreur lors de la mise à jour de la zone');
     }
   };
 
@@ -204,12 +211,19 @@ export default function ZonesPage() {
         onClose={() => {
           setShowCreateModal(false);
           setEditingZone(null);
+          setFormError(null);
           resetForm();
         }}
         title={editingZone ? 'Modifier la zone' : 'Nouvelle zone'}
         size="md"
       >
         <div className="space-y-4">
+          {formError && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+              <p className="text-sm text-red-700">{formError}</p>
+            </div>
+          )}
           <Input
             label="Nom de la zone"
             value={formData.name}
