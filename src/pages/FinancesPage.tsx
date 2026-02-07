@@ -3,14 +3,17 @@ import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight } from 'luci
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import Header from '../components/layout/Header';
 import Card, { CardHeader } from '../components/ui/Card';
-import { getDashboardStats, getDeliveries } from '../services/adminService';
+import { getDashboardStats, getDeliveries, getRevenueByDay, getRevenueDistribution, getPendingPayments } from '../services/adminService';
 import type { DashboardStats, Delivery } from '../types';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function FinancesPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentDeliveries, setRecentDeliveries] = useState<Delivery[]>([]);
+  const [revenueData, setRevenueData] = useState<{ date: string; revenue: number; commission: number }[]>([]);
+  const [distributionData, setDistributionData] = useState<{ name: string; value: number; color: string }[]>([]);
+  const [pendingPayments, setPendingPayments] = useState({ count: 0, total: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,12 +23,18 @@ export default function FinancesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [statsData, deliveriesData] = await Promise.all([
+      const [statsData, deliveriesData, revenue, distribution, pending] = await Promise.all([
         getDashboardStats(),
         getDeliveries({ status: 'delivered', limit: 10 }),
+        getRevenueByDay(7),
+        getRevenueDistribution(),
+        getPendingPayments(),
       ]);
       setStats(statsData);
       setRecentDeliveries(deliveriesData);
+      setRevenueData(revenue);
+      setDistributionData(distribution);
+      setPendingPayments(pending);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -40,19 +49,6 @@ export default function FinancesPage() {
       minimumFractionDigits: 0,
     }).format(value);
   };
-
-  // Mock data for charts
-  const revenueData = Array.from({ length: 7 }, (_, i) => ({
-    date: format(subDays(new Date(), 6 - i), 'dd/MM'),
-    revenue: Math.floor(Math.random() * 500000) + 200000,
-    commission: Math.floor(Math.random() * 75000) + 30000,
-  }));
-
-  const distributionData = [
-    { name: 'Livreurs', value: 70, color: '#22c55e' },
-    { name: 'Entreprises', value: 15, color: '#3b82f6' },
-    { name: 'Plateforme', value: 15, color: '#ed7410' },
-  ];
 
   if (loading) {
     return (
@@ -78,7 +74,7 @@ export default function FinancesPage() {
                 </p>
                 <p className="text-sm text-green-600 mt-1 flex items-center">
                   <ArrowUpRight className="w-4 h-4 mr-1" />
-                  +12.5% ce mois
+                  {stats?.totalDeliveries || 0} livraisons
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
@@ -112,7 +108,7 @@ export default function FinancesPage() {
                   {formatCurrency(stats?.platformCommission || 0)}
                 </p>
                 <p className="text-sm text-primary-600 mt-1 flex items-center">
-                  15% en moyenne
+                  {stats?.totalRevenue ? Math.round((stats.platformCommission / stats.totalRevenue) * 100) : 0}% en moyenne
                 </p>
               </div>
               <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
@@ -126,10 +122,10 @@ export default function FinancesPage() {
               <div>
                 <p className="text-sm text-gray-500">Paiements en attente</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">
-                  {formatCurrency(0)}
+                  {formatCurrency(pendingPayments.total)}
                 </p>
                 <p className="text-sm text-yellow-600 mt-1 flex items-center">
-                  0 demandes
+                  {pendingPayments.count} demandes
                 </p>
               </div>
               <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">

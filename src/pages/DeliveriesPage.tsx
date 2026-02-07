@@ -6,10 +6,22 @@ import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
-import { getDeliveries, getDelivery } from '../services/adminService';
+import { getDeliveries, getDelivery, updateDeliveryStatus } from '../services/adminService';
 import type { Delivery } from '../types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+
+const ADMIN_STATUS_TRANSITIONS: Record<string, { value: string; label: string }[]> = {
+  pending: [{ value: 'cancelled', label: 'Annuler' }],
+  searching: [{ value: 'cancelled', label: 'Annuler' }],
+  assigned: [{ value: 'cancelled', label: 'Annuler' }],
+  accepted: [{ value: 'cancelled', label: 'Annuler' }],
+  picking_up: [{ value: 'cancelled', label: 'Annuler' }, { value: 'failed', label: 'Échouée' }],
+  picked_up: [{ value: 'cancelled', label: 'Annuler' }, { value: 'failed', label: 'Échouée' }],
+  in_transit: [{ value: 'delivered', label: 'Livrée' }, { value: 'failed', label: 'Échouée' }, { value: 'cancelled', label: 'Annuler' }],
+  arriving: [{ value: 'delivered', label: 'Livrée' }, { value: 'failed', label: 'Échouée' }],
+  delivered: [{ value: 'completed', label: 'Terminée' }],
+};
 
 export default function DeliveriesPage() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -18,6 +30,9 @@ export default function DeliveriesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
+  const [newStatus, setNewStatus] = useState('');
+  const [updating, setUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDeliveries();
@@ -42,6 +57,8 @@ export default function DeliveriesPage() {
     const delivery = await getDelivery(id);
     if (delivery) {
       setSelectedDelivery(delivery);
+      setNewStatus('');
+      setUpdateError(null);
       setShowDetailModal(true);
     }
   };
@@ -266,12 +283,55 @@ export default function DeliveriesPage() {
       >
         {selectedDelivery && (
           <div className="space-y-6">
-            {/* Status */}
-            <div className="flex items-center justify-between">
-              {getStatusBadge(selectedDelivery.status)}
-              <span className="text-sm text-gray-500">
-                Créée le {format(new Date(selectedDelivery.created_at), 'dd MMM yyyy à HH:mm', { locale: fr })}
-              </span>
+            {/* Status + Update */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                {getStatusBadge(selectedDelivery.status)}
+                <span className="text-sm text-gray-500">
+                  Créée le {format(new Date(selectedDelivery.created_at), 'dd MMM yyyy à HH:mm', { locale: fr })}
+                </span>
+              </div>
+
+              {/* Status Update Controls */}
+              {ADMIN_STATUS_TRANSITIONS[selectedDelivery.status] && (
+                <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
+                  <select
+                    value={newStatus}
+                    onChange={(e) => setNewStatus(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Changer le statut...</option>
+                    {ADMIN_STATUS_TRANSITIONS[selectedDelivery.status].map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    disabled={!newStatus || updating}
+                    loading={updating}
+                    onClick={async () => {
+                      if (!newStatus || !selectedDelivery) return;
+                      setUpdating(true);
+                      setUpdateError(null);
+                      const result = await updateDeliveryStatus(selectedDelivery.id, newStatus);
+                      if (result.success) {
+                        setNewStatus('');
+                        const updated = await getDelivery(selectedDelivery.id);
+                        if (updated) setSelectedDelivery(updated);
+                        loadDeliveries();
+                      } else {
+                        setUpdateError(result.error || 'Erreur lors de la mise à jour');
+                      }
+                      setUpdating(false);
+                    }}
+                  >
+                    Mettre à jour
+                  </Button>
+                </div>
+              )}
+              {updateError && (
+                <p className="text-sm text-red-600">{updateError}</p>
+              )}
             </div>
 
             {/* Addresses */}

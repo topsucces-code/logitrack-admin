@@ -14,31 +14,13 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import Header from '../components/layout/Header';
 import Card, { CardHeader } from '../components/ui/Card';
-import { getDashboardStats } from '../services/adminService';
+import { getDashboardStats, getDeliveryTrend, getRevenueTrend } from '../services/adminService';
 import type { DashboardStats } from '../types';
-
-// Mock data for charts
-const deliveryTrendData = [
-  { name: 'Lun', livraisons: 45 },
-  { name: 'Mar', livraisons: 52 },
-  { name: 'Mer', livraisons: 48 },
-  { name: 'Jeu', livraisons: 61 },
-  { name: 'Ven', livraisons: 55 },
-  { name: 'Sam', livraisons: 67 },
-  { name: 'Dim', livraisons: 43 },
-];
-
-const revenueData = [
-  { name: 'Jan', revenue: 4500000 },
-  { name: 'Fév', revenue: 5200000 },
-  { name: 'Mar', revenue: 4800000 },
-  { name: 'Avr', revenue: 6100000 },
-  { name: 'Mai', revenue: 5500000 },
-  { name: 'Juin', revenue: 7200000 },
-];
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [deliveryTrendData, setDeliveryTrendData] = useState<{ name: string; livraisons: number }[]>([]);
+  const [revenueData, setRevenueData] = useState<{ name: string; revenue: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,8 +29,14 @@ export default function DashboardPage() {
 
   const loadStats = async () => {
     try {
-      const data = await getDashboardStats();
+      const [data, trend, revenue] = await Promise.all([
+        getDashboardStats(),
+        getDeliveryTrend(7),
+        getRevenueTrend(6),
+      ]);
       setStats(data);
+      setDeliveryTrendData(trend);
+      setRevenueData(revenue);
     } catch (error) {
       console.error('Error loading stats:', error);
     } finally {

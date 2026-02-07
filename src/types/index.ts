@@ -334,3 +334,17 @@ export interface AdminUser {
   last_login_at?: string;
   created_at: string;
 }
+
+// ========================================
+// Admin Notifications
+// ========================================
+
+export interface AdminNotification {
+  id: string;
+  type: 'new_driver' | 'new_company' | 'incident' | 'delivery_failed';
+  title: string;
+  message: string;
+  data: Record<string, unknown>;
+  is_read: boolean;
+  created_at: string;
+}

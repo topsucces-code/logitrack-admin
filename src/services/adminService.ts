@@ -14,6 +14,7 @@ import type {
   Incident,
   DashboardStats,
   ApiUsageStats,
+  AdminNotification,
 } from '../types';
 
 // ========================================
@@ -569,4 +570,259 @@ export async function getApiUsageStats(): Promise<ApiUsageStats[]> {
       plan: client.plan,
     };
   }).sort((a, b) => b.totalRequests - a.totalRequests);
+}
+
+// ========================================
+// Platform Settings
+// ========================================
+
+export async function getSettings(): Promise<Record<string, Record<string, unknown>>> {
+  const { data, error } = await supabase
+    .from('logitrack_platform_settings')
+    .select('key, value');
+
+  if (error) {
+    console.error('Error fetching settings:', error);
+    return {};
+  }
+
+  const settings: Record<string, Record<string, unknown>> = {};
+  for (const row of data || []) {
+    settings[row.key] = row.value as Record<string, unknown>;
+  }
+  return settings;
+}
+
+export async function updateSettings(
+  key: string,
+  value: Record<string, unknown>
+): Promise<{ success: boolean; error?: string }> {
+  const { error } = await supabase
+    .from('logitrack_platform_settings')
+    .update({ value, updated_at: new Date().toISOString() })
+    .eq('key', key);
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+// ========================================
+// Chart Data
+// ========================================
+
+export async function getRevenueByDay(days: number = 7): Promise<{ date: string; revenue: number; commission: number }[]> {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  startDate.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from('logitrack_deliveries')
+    .select('total_price, platform_fee, created_at')
+    .in('status', ['delivered', 'completed'])
+    .gte('created_at', startDate.toISOString());
+
+  if (error) {
+    console.error('Error fetching revenue by day:', error);
+    return [];
+  }
+
+  // Group by day
+  const byDay: Record<string, { revenue: number; commission: number }> = {};
+  for (let i = 0; i < days; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - (days - 1 - i));
+    const key = d.toISOString().split('T')[0];
+    byDay[key] = { revenue: 0, commission: 0 };
+  }
+
+  for (const row of data || []) {
+    const key = new Date(row.created_at).toISOString().split('T')[0];
+    if (byDay[key]) {
+      byDay[key].revenue += row.total_price || 0;
+      byDay[key].commission += row.platform_fee || 0;
+    }
+  }
+
+  return Object.entries(byDay).map(([date, vals]) => ({
+    date: `${date.split('-')[2]}/${date.split('-')[1]}`,
+    revenue: vals.revenue,
+    commission: vals.commission,
+  }));
+}
+
+export async function getRevenueDistribution(): Promise<{ name: string; value: number; color: string }[]> {
+  const { data, error } = await supabase
+    .from('logitrack_deliveries')
+    .select('driver_earnings, company_earnings, platform_fee')
+    .in('status', ['delivered', 'completed']);
+
+  if (error) {
+    console.error('Error fetching distribution:', error);
+    return [
+      { name: 'Livreurs', value: 0, color: '#22c55e' },
+      { name: 'Entreprises', value: 0, color: '#3b82f6' },
+      { name: 'Plateforme', value: 0, color: '#ed7410' },
+    ];
+  }
+
+  let totalDrivers = 0;
+  let totalCompanies = 0;
+  let totalPlatform = 0;
+
+  for (const row of data || []) {
+    totalDrivers += row.driver_earnings || 0;
+    totalCompanies += row.company_earnings || 0;
+    totalPlatform += row.platform_fee || 0;
+  }
+
+  const total = totalDrivers + totalCompanies + totalPlatform;
+  if (total === 0) {
+    return [
+      { name: 'Livreurs', value: 0, color: '#22c55e' },
+      { name: 'Entreprises', value: 0, color: '#3b82f6' },
+      { name: 'Plateforme', value: 0, color: '#ed7410' },
+    ];
+  }
+
+  return [
+    { name: 'Livreurs', value: Math.round((totalDrivers / total) * 100), color: '#22c55e' },
+    { name: 'Entreprises', value: Math.round((totalCompanies / total) * 100), color: '#3b82f6' },
+    { name: 'Plateforme', value: Math.round((totalPlatform / total) * 100), color: '#ed7410' },
+  ];
+}
+
+export async function getDeliveryTrend(days: number = 7): Promise<{ name: string; livraisons: number }[]> {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  startDate.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from('logitrack_deliveries')
+    .select('created_at')
+    .gte('created_at', startDate.toISOString());
+
+  if (error) {
+    console.error('Error fetching delivery trend:', error);
+    return [];
+  }
+
+  const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+  const byDay: Record<string, { name: string; livraisons: number }> = {};
+
+  for (let i = 0; i < days; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - (days - 1 - i));
+    const key = d.toISOString().split('T')[0];
+    byDay[key] = { name: dayNames[d.getDay()], livraisons: 0 };
+  }
+
+  for (const row of data || []) {
+    const key = new Date(row.created_at).toISOString().split('T')[0];
+    if (byDay[key]) {
+      byDay[key].livraisons++;
+    }
+  }
+
+  return Object.values(byDay);
+}
+
+export async function getRevenueTrend(months: number = 6): Promise<{ name: string; revenue: number }[]> {
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - months);
+  startDate.setDate(1);
+  startDate.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from('logitrack_deliveries')
+    .select('total_price, created_at')
+    .in('status', ['delivered', 'completed'])
+    .gte('created_at', startDate.toISOString());
+
+  if (error) {
+    console.error('Error fetching revenue trend:', error);
+    return [];
+  }
+
+  const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+  const byMonth: Record<string, { name: string; revenue: number }> = {};
+
+  for (let i = 0; i < months; i++) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - (months - 1 - i));
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    byMonth[key] = { name: monthNames[d.getMonth()], revenue: 0 };
+  }
+
+  for (const row of data || []) {
+    const d = new Date(row.created_at);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (byMonth[key]) {
+      byMonth[key].revenue += row.total_price || 0;
+    }
+  }
+
+  return Object.values(byMonth);
+}
+
+export async function getPendingPayments(): Promise<{ count: number; total: number }> {
+  const { data, error } = await supabase
+    .from('logitrack_deliveries')
+    .select('total_price')
+    .eq('status', 'delivered')
+    .eq('payment_status', 'pending');
+
+  if (error) {
+    console.error('Error fetching pending payments:', error);
+    return { count: 0, total: 0 };
+  }
+
+  return {
+    count: (data || []).length,
+    total: (data || []).reduce((sum, d) => sum + (d.total_price || 0), 0),
+  };
+}
+
+// ========================================
+// Admin Notifications
+// ========================================
+
+export async function getNotifications(limit: number = 20): Promise<AdminNotification[]> {
+  const { data, error } = await supabase
+    .from('logitrack_admin_notifications')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching notifications:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function getUnreadCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from('logitrack_admin_notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_read', false);
+
+  if (error) {
+    console.error('Error fetching unread count:', error);
+    return 0;
+  }
+  return count || 0;
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await supabase
+    .from('logitrack_admin_notifications')
+    .update({ is_read: true })
+    .eq('id', id);
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await supabase
+    .from('logitrack_admin_notifications')
+    .update({ is_read: true })
+    .eq('is_read', false);
 }
