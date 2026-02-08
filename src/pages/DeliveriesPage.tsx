@@ -20,9 +20,10 @@ const ADMIN_STATUS_TRANSITIONS: Record<string, { value: string; label: string }[
   accepted: [{ value: 'cancelled', label: 'Annuler' }],
   picking_up: [{ value: 'cancelled', label: 'Annuler' }, { value: 'failed', label: 'Échouée' }],
   picked_up: [{ value: 'cancelled', label: 'Annuler' }, { value: 'failed', label: 'Échouée' }],
-  in_transit: [{ value: 'delivered', label: 'Livrée' }, { value: 'failed', label: 'Échouée' }, { value: 'cancelled', label: 'Annuler' }],
-  arriving: [{ value: 'delivered', label: 'Livrée' }, { value: 'failed', label: 'Échouée' }],
+  in_transit: [{ value: 'delivered', label: 'Livrée' }, { value: 'failed', label: 'Échouée' }, { value: 'returned', label: 'Retournée' }, { value: 'cancelled', label: 'Annuler' }],
+  arriving: [{ value: 'delivered', label: 'Livrée' }, { value: 'failed', label: 'Échouée' }, { value: 'returned', label: 'Retournée' }],
   delivered: [{ value: 'completed', label: 'Terminée' }],
+  returned: [{ value: 'completed', label: 'Terminée' }],
 };
 
 export default function DeliveriesPage() {
@@ -89,6 +90,7 @@ export default function DeliveriesPage() {
       completed: { variant: 'success', label: 'Terminée' },
       cancelled: { variant: 'danger', label: 'Annulée' },
       failed: { variant: 'danger', label: 'Échouée' },
+      returned: { variant: 'warning', label: 'Retournée' },
     };
     const config = statusConfig[status] || { variant: 'default', label: status };
     return <Badge variant={config.variant}>{config.label}</Badge>;
