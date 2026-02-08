@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, CheckCircle, Ban, XCircle, Eye, Phone, AlertCircle, Download } from 'lucide-react';
+import { Search, CheckCircle, Ban, XCircle, Eye, Phone, AlertCircle, Download, RotateCcw } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
@@ -71,6 +71,14 @@ export default function DriversPage() {
     if (!result.success) { showError(result.error || 'Erreur lors du rejet'); return; }
     showSuccess('Chauffeur rejeté');
     loadDrivers();
+  };
+
+  const activeFilterCount = [searchQuery, statusFilter].filter(Boolean).length;
+  const hasActiveFilters = activeFilterCount > 0;
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('');
   };
 
   const filteredDrivers = drivers.filter(
@@ -179,6 +187,15 @@ export default function DriversPage() {
             <Download className="w-4 h-4" />
             Export CSV
           </button>
+          {hasActiveFilters && (
+            <button
+              onClick={resetFilters}
+              className="flex items-center gap-1.5 ml-auto text-sm text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reinitialiser ({activeFilterCount})
+            </button>
+          )}
         </div>
 
         {/* Stats */}
@@ -218,6 +235,23 @@ export default function DriversPage() {
           {loading ? (
             <div className="p-8 text-center">
               <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />
+            </div>
+          ) : filteredDrivers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 px-4">
+              <Search className="w-10 h-10 text-gray-300 mb-3" />
+              {hasActiveFilters ? (
+                <>
+                  <p className="text-gray-500 text-sm">Aucun resultat pour ces filtres</p>
+                  <button
+                    onClick={resetFilters}
+                    className="mt-2 text-sm text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Effacer les filtres
+                  </button>
+                </>
+              ) : (
+                <p className="text-gray-500 text-sm">Aucun livreur trouve</p>
+              )}
             </div>
           ) : (
             <Table>

@@ -19,6 +19,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import Header from '../components/layout/Header';
 import Card, { CardHeader } from '../components/ui/Card';
+import { SkeletonStatCard, SkeletonChartCard, SkeletonListItem } from '../components/ui/Skeleton';
 import { getDashboardStats, getDeliveryTrend, getRevenueTrend } from '../services/adminService';
 import type { DashboardStats } from '../types';
 
@@ -75,8 +76,47 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen">
+        <Header title="Dashboard" subtitle="Vue d'ensemble de la plateforme LogiTrack Africa" />
+        <div className="p-6 space-y-6">
+          {/* Stats Grid skeleton -- 4 cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <SkeletonStatCard key={i} />
+            ))}
+          </div>
+          {/* Revenue Stats skeleton -- 3 cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonStatCard key={i} />
+            ))}
+          </div>
+          {/* Charts skeleton -- 2 chart areas */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SkeletonChartCard />
+            <SkeletonChartCard />
+          </div>
+          {/* Bottom cards skeleton -- driver distribution + quick actions */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Driver distribution placeholder */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 animate-pulse">
+              <div className="h-5 w-48 bg-gray-200 rounded mb-4" />
+              <div className="space-y-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <SkeletonListItem key={i} />
+                ))}
+              </div>
+            </div>
+            {/* Quick actions placeholder */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 animate-pulse">
+              <div className="h-5 w-36 bg-gray-200 rounded mb-4" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="h-24 bg-gray-200 rounded-xl" />
+                <div className="h-24 bg-gray-200 rounded-xl" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

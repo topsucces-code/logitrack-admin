@@ -5,6 +5,7 @@ import { adminLogger } from '../utils/logger';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import Header from '../components/layout/Header';
 import Card, { CardHeader } from '../components/ui/Card';
+import { SkeletonStatCard, SkeletonChartCard, SkeletonTable } from '../components/ui/Skeleton';
 import { getDashboardStats, getDeliveries, getRevenueByDay, getRevenueDistribution, getPendingPayments } from '../services/adminService';
 import type { DashboardStats, Delivery } from '../types';
 import { format } from 'date-fns';
@@ -115,8 +116,23 @@ export default function FinancesPage() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen">
+        <Header title="Finances" subtitle="Aperçu financier de la plateforme" />
+        <div className="p-6 space-y-6">
+          {/* Main Stats skeleton -- 4 cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <SkeletonStatCard key={i} />
+            ))}
+          </div>
+          {/* Charts skeleton -- 2/3 + 1/3 split matching lg:grid-cols-3 */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <SkeletonChartCard className="lg:col-span-2" />
+            <SkeletonChartCard />
+          </div>
+          {/* Table skeleton -- 6 columns, 5 rows */}
+          <SkeletonTable rows={5} columns={6} />
+        </div>
       </div>
     );
   }

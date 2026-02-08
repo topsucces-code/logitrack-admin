@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle, Clock, Eye, AlertCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Eye, AlertCircle, RotateCcw, Search } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
@@ -117,6 +117,14 @@ export default function IncidentsPage() {
     resolved: incidents.filter((i) => i.status === 'resolved').length,
   };
 
+  const activeFilterCount = [statusFilter, severityFilter].filter(Boolean).length;
+  const hasActiveFilters = activeFilterCount > 0;
+
+  const resetFilters = () => {
+    setStatusFilter('');
+    setSeverityFilter('');
+  };
+
   return (
     <div className="min-h-screen">
       <Header title="Incidents & Litiges" subtitle="Gérez les incidents de livraison" />
@@ -201,6 +209,15 @@ export default function IncidentsPage() {
             <option value="high">Élevé</option>
             <option value="critical">Critique</option>
           </select>
+          {hasActiveFilters && (
+            <button
+              onClick={resetFilters}
+              className="flex items-center gap-1.5 ml-auto text-sm text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reinitialiser ({activeFilterCount})
+            </button>
+          )}
         </div>
 
         {/* Table */}
@@ -210,8 +227,21 @@ export default function IncidentsPage() {
               <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />
             </div>
           ) : incidents.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              Aucun incident trouvé
+            <div className="flex flex-col items-center justify-center py-12 px-4">
+              <Search className="w-10 h-10 text-gray-300 mb-3" />
+              {hasActiveFilters ? (
+                <>
+                  <p className="text-gray-500 text-sm">Aucun resultat pour ces filtres</p>
+                  <button
+                    onClick={resetFilters}
+                    className="mt-2 text-sm text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Effacer les filtres
+                  </button>
+                </>
+              ) : (
+                <p className="text-gray-500 text-sm">Aucun incident trouve</p>
+              )}
             </div>
           ) : (
             <Table>
