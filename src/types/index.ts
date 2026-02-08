@@ -291,6 +291,20 @@ export interface Incident {
 export type IncidentType = IncidentTypeCode;
 
 // ========================================
+// Delivery Status History
+// ========================================
+
+export interface StatusHistoryEntry {
+  id: string;
+  delivery_id: string;
+  old_status: DeliveryStatus | null;
+  new_status: DeliveryStatus;
+  changed_by?: string;
+  notes?: string;
+  created_at: string;
+}
+
+// ========================================
 // Dashboard Stats
 // ========================================
 

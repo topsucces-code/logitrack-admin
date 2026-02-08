@@ -8,8 +8,8 @@ import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
-import { getDeliveries, getDelivery, updateDeliveryStatus } from '../services/adminService';
-import type { Delivery } from '../types';
+import { getDeliveries, getDelivery, updateDeliveryStatus, getDeliveryStatusHistory } from '../services/adminService';
+import type { Delivery, StatusHistoryEntry } from '../types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -37,6 +37,8 @@ export default function DeliveriesPage() {
   const [updating, setUpdating] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [statusHistory, setStatusHistory] = useState<StatusHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 20;
@@ -75,6 +77,10 @@ export default function DeliveriesPage() {
       setNewStatus('');
       setUpdateError(null);
       setShowDetailModal(true);
+      setHistoryLoading(true);
+      const history = await getDeliveryStatusHistory(id);
+      setStatusHistory(history);
+      setHistoryLoading(false);
     }
   };
 
@@ -126,6 +132,46 @@ export default function DeliveriesPage() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+
+  const getTimelineColor = (status: string): { dot: string; line: string; bg: string; text: string } => {
+    const completedStatuses = ['delivered', 'completed'];
+    const inProgressStatuses = ['assigned', 'accepted', 'picking_up', 'picked_up', 'in_transit', 'arriving'];
+    const cancelledStatuses = ['cancelled', 'failed'];
+    const pendingStatuses = ['pending', 'searching'];
+
+    if (completedStatuses.includes(status)) {
+      return { dot: 'bg-green-500', line: 'bg-green-200', bg: 'bg-green-50', text: 'text-green-700' };
+    }
+    if (inProgressStatuses.includes(status)) {
+      return { dot: 'bg-blue-500', line: 'bg-blue-200', bg: 'bg-blue-50', text: 'text-blue-700' };
+    }
+    if (cancelledStatuses.includes(status)) {
+      return { dot: 'bg-red-500', line: 'bg-red-200', bg: 'bg-red-50', text: 'text-red-700' };
+    }
+    if (pendingStatuses.includes(status)) {
+      return { dot: 'bg-gray-400', line: 'bg-gray-200', bg: 'bg-gray-50', text: 'text-gray-700' };
+    }
+    return { dot: 'bg-gray-400', line: 'bg-gray-200', bg: 'bg-gray-50', text: 'text-gray-600' };
+  };
+
+  const getStatusLabel = (status: string): string => {
+    const labels: Record<string, string> = {
+      pending: 'En attente',
+      searching: 'Recherche livreur',
+      assigned: 'Assignee',
+      accepted: 'Acceptee',
+      picking_up: 'En route pickup',
+      picked_up: 'Recuperee',
+      in_transit: 'En transit',
+      arriving: 'Arrivee',
+      delivered: 'Livree',
+      completed: 'Terminee',
+      cancelled: 'Annulee',
+      failed: 'Echouee',
+      returned: 'Retournee',
+    };
+    return labels[status] || status;
+  };
 
   const stats = {
     total: deliveries.length,
@@ -348,6 +394,7 @@ export default function DeliveriesPage() {
         onClose={() => {
           setShowDetailModal(false);
           setSelectedDelivery(null);
+          setStatusHistory([]);
         }}
         title={`Livraison ${selectedDelivery?.tracking_code}`}
         size="lg"
@@ -389,6 +436,8 @@ export default function DeliveriesPage() {
                         setNewStatus('');
                         const updated = await getDelivery(selectedDelivery.id);
                         if (updated) setSelectedDelivery(updated);
+                        const history = await getDeliveryStatusHistory(selectedDelivery.id);
+                        setStatusHistory(history);
                         loadDeliveries();
                       } else {
                         setUpdateError(result.error || 'Erreur lors de la mise à jour');
@@ -481,6 +530,61 @@ export default function DeliveriesPage() {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Status Timeline */}
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-3">Historique des statuts</h4>
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <div className="w-6 h-6 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : statusHistory.length === 0 ? (
+                <p className="text-sm text-gray-500 py-4 text-center">Aucun historique disponible</p>
+              ) : (
+                <div className="relative ml-3">
+                  {statusHistory.map((entry, index) => {
+                    const isLast = index === statusHistory.length - 1;
+                    const colors = getTimelineColor(entry.new_status);
+                    return (
+                      <div key={entry.id} className="relative flex items-start pb-4">
+                        {/* Vertical line */}
+                        {!isLast && (
+                          <div className={`absolute left-[7px] top-4 w-0.5 h-full ${colors.line}`} />
+                        )}
+                        {/* Dot */}
+                        <div className={`relative z-10 w-4 h-4 rounded-full ${colors.dot} border-2 border-white shadow-sm flex-shrink-0 mt-0.5`} />
+                        {/* Content */}
+                        <div className="ml-3 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors.bg} ${colors.text}`}>
+                              {getStatusLabel(entry.new_status)}
+                            </span>
+                            {entry.old_status && (
+                              <span className="text-xs text-gray-400">
+                                depuis {getStatusLabel(entry.old_status)}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {format(new Date(entry.created_at), "dd MMM yyyy 'a' HH:mm:ss", { locale: fr })}
+                          </p>
+                          {entry.changed_by && (
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              Par : {entry.changed_by}
+                            </p>
+                          )}
+                          {entry.notes && (
+                            <p className="text-xs text-gray-600 mt-1 bg-gray-50 px-2 py-1 rounded">
+                              {entry.notes}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end">

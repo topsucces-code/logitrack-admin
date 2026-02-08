@@ -11,6 +11,7 @@ import type {
   DeliveryCompany,
   Driver,
   Delivery,
+  StatusHistoryEntry,
   Zone,
   Incident,
   DashboardStats,
@@ -442,6 +443,20 @@ export async function updateDeliveryStatus(id: string, status: string): Promise<
 
   if (error) return { success: false, error: error.message };
   return { success: true };
+}
+
+export async function getDeliveryStatusHistory(deliveryId: string): Promise<StatusHistoryEntry[]> {
+  const { data, error } = await supabase
+    .from('logitrack_delivery_status_history')
+    .select('*')
+    .eq('delivery_id', deliveryId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    adminLogger.error('Error fetching delivery status history', { error, deliveryId });
+    return [];
+  }
+  return data || [];
 }
 
 // ========================================
