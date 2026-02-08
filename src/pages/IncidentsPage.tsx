@@ -23,20 +23,30 @@ export default function IncidentsPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [resolution, setResolution] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 20;
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, severityFilter]);
 
   useEffect(() => {
     loadIncidents();
-  }, [statusFilter, severityFilter]);
+  }, [statusFilter, severityFilter, page]);
 
   const loadIncidents = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const data = await getIncidents({
+      const { data, total } = await getIncidents({
         status: statusFilter || undefined,
         severity: severityFilter || undefined,
-        limit: 100,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
       });
       setIncidents(data);
+      setTotalCount(total);
     } catch (error) {
       adminLogger.error('Error loading incidents', { error });
       setLoadError('Erreur lors du chargement des incidents');
@@ -257,6 +267,31 @@ export default function IncidentsPage() {
               </TableBody>
             </Table>
           )}
+          {/* Pagination */}
+          <div className="flex items-center justify-between px-4 py-3 border-t">
+            <p className="text-sm text-gray-500">
+              {totalCount} incident{totalCount > 1 ? 's' : ''} au total
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                Précédent
+              </button>
+              <span className="text-sm text-gray-700">
+                Page {page} / {Math.ceil(totalCount / pageSize) || 1}
+              </span>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={page >= Math.ceil(totalCount / pageSize)}
+                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                Suivant
+              </button>
+            </div>
+          </div>
         </Card>
       </div>
 

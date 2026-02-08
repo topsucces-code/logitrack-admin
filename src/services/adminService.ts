@@ -514,25 +514,29 @@ export async function getIncidents(options?: {
   status?: string;
   severity?: string;
   limit?: number;
-}): Promise<Incident[]> {
+  offset?: number;
+}): Promise<{ data: Incident[]; total: number }> {
+  const limit = options?.limit ?? 20;
+  const offset = options?.offset ?? 0;
+
   let query = supabase
     .from('logitrack_incidents')
     .select(`
       *,
       delivery:delivery_id(tracking_code, pickup_address, delivery_address)
-    `)
-    .order('created_at', { ascending: false });
+    `, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (options?.status) query = query.eq('status', options.status);
   if (options?.severity) query = query.eq('severity', options.severity);
-  if (options?.limit) query = query.limit(options.limit);
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) {
     adminLogger.error('Error fetching incidents', { error });
-    return [];
+    return { data: [], total: 0 };
   }
-  return data || [];
+  return { data: data || [], total: count ?? 0 };
 }
 
 export async function updateIncidentStatus(
@@ -597,29 +601,50 @@ export async function updateSettings(
 // Chart Data
 // ========================================
 
-export async function getRevenueByDay(days: number = 7): Promise<{ date: string; revenue: number; commission: number }[]> {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-  startDate.setHours(0, 0, 0, 0);
+export async function getRevenueByDay(
+  days?: number,
+  startDateStr?: string,
+  endDateStr?: string
+): Promise<{ date: string; revenue: number; commission: number }[]> {
+  let fromDate: Date;
+  let toDate: Date;
+
+  if (startDateStr && endDateStr) {
+    // Custom date range
+    fromDate = new Date(startDateStr + 'T00:00:00');
+    toDate = new Date(endDateStr + 'T23:59:59');
+  } else {
+    // Default: last N days (backward compatible)
+    const numDays = days ?? 7;
+    fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - numDays);
+    fromDate.setHours(0, 0, 0, 0);
+    toDate = new Date();
+    toDate.setHours(23, 59, 59, 999);
+  }
 
   const { data, error } = await supabase
     .from('logitrack_deliveries')
     .select('total_price, platform_fee, created_at')
     .in('status', ['delivered', 'completed'])
-    .gte('created_at', startDate.toISOString());
+    .gte('created_at', fromDate.toISOString())
+    .lte('created_at', toDate.toISOString());
 
   if (error) {
     adminLogger.error('Error fetching revenue by day', { error });
     return [];
   }
 
-  // Group by day
+  // Build day buckets between fromDate and toDate
   const byDay: Record<string, { revenue: number; commission: number }> = {};
-  for (let i = 0; i < days; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() - (days - 1 - i));
-    const key = d.toISOString().split('T')[0];
+  const cursor = new Date(fromDate);
+  cursor.setHours(0, 0, 0, 0);
+  const end = new Date(toDate);
+  end.setHours(0, 0, 0, 0);
+  while (cursor <= end) {
+    const key = cursor.toISOString().split('T')[0];
     byDay[key] = { revenue: 0, commission: 0 };
+    cursor.setDate(cursor.getDate() + 1);
   }
 
   for (const row of data || []) {

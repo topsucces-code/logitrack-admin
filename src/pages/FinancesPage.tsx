@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, AlertCircle } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, AlertCircle, Calendar } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -10,6 +10,15 @@ import type { DashboardStats, Delivery } from '../types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
+type RevenuePeriod = '7d' | '30d' | 'thisMonth' | 'custom';
+
+const periodLabels: Record<RevenuePeriod, string> = {
+  '7d': '7 derniers jours',
+  '30d': '30 derniers jours',
+  'thisMonth': 'Mois en cours',
+  'custom': 'Période personnalisée',
+};
+
 export default function FinancesPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentDeliveries, setRecentDeliveries] = useState<Delivery[]>([]);
@@ -18,6 +27,50 @@ export default function FinancesPage() {
   const [pendingPayments, setPendingPayments] = useState({ count: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [selectedPeriod, setSelectedPeriod] = useState<RevenuePeriod>('7d');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [revenueLoading, setRevenueLoading] = useState(false);
+
+  const loadRevenueData = useCallback(async (period: RevenuePeriod, startDate?: string, endDate?: string) => {
+    setRevenueLoading(true);
+    try {
+      let revenue: { date: string; revenue: number; commission: number }[];
+
+      switch (period) {
+        case '7d':
+          revenue = await getRevenueByDay(7);
+          break;
+        case '30d':
+          revenue = await getRevenueByDay(30);
+          break;
+        case 'thisMonth': {
+          const now = new Date();
+          const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+          const firstDayStr = firstDay.toISOString().split('T')[0];
+          const todayStr = now.toISOString().split('T')[0];
+          revenue = await getRevenueByDay(undefined, firstDayStr, todayStr);
+          break;
+        }
+        case 'custom':
+          if (startDate && endDate) {
+            revenue = await getRevenueByDay(undefined, startDate, endDate);
+          } else {
+            revenue = await getRevenueByDay(7);
+          }
+          break;
+        default:
+          revenue = await getRevenueByDay(7);
+      }
+
+      setRevenueData(revenue);
+    } catch (error) {
+      adminLogger.error('Error loading revenue data', { error });
+    } finally {
+      setRevenueLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -44,6 +97,19 @@ export default function FinancesPage() {
       setLoadError('Erreur lors du chargement des données financières');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePeriodChange = (period: RevenuePeriod) => {
+    setSelectedPeriod(period);
+    if (period !== 'custom') {
+      loadRevenueData(period);
+    }
+  };
+
+  const handleCustomDateApply = () => {
+    if (customStartDate && customEndDate) {
+      loadRevenueData('custom', customStartDate, customEndDate);
     }
   };
 
@@ -143,8 +209,75 @@ export default function FinancesPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Revenue Chart */}
           <Card className="lg:col-span-2">
-            <CardHeader title="Évolution des revenus" subtitle="7 derniers jours" />
-            <div className="h-72">
+            <CardHeader
+              title="Évolution des revenus"
+              subtitle={
+                selectedPeriod === 'custom' && customStartDate && customEndDate
+                  ? `Du ${customStartDate.split('-').reverse().join('/')} au ${customEndDate.split('-').reverse().join('/')}`
+                  : periodLabels[selectedPeriod]
+              }
+            />
+
+            {/* Period Filter Buttons */}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              {([
+                ['7d', '7 jours'],
+                ['30d', '30 jours'],
+                ['thisMonth', 'Ce mois'],
+                ['custom', 'Personnalisé'],
+              ] as [RevenuePeriod, string][]).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => handlePeriodChange(key)}
+                  className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                    selectedPeriod === key
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {key === 'custom' && <Calendar className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />}
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Date Range Inputs */}
+            {selectedPeriod === 'custom' && (
+              <div className="flex flex-wrap items-end gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Date de début</label>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Date de fin</label>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handleCustomDateApply}
+                  disabled={!customStartDate || !customEndDate || revenueLoading}
+                  className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Appliquer
+                </button>
+              </div>
+            )}
+
+            <div className="h-72 relative">
+              {revenueLoading && (
+                <div className="absolute inset-0 bg-white/70 flex items-center justify-center z-10 rounded-lg">
+                  <div className="w-6 h-6 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={revenueData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
