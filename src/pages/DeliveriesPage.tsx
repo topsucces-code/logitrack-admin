@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Search, Eye, MapPin, Package, Clock, CheckCircle, Truck, AlertCircle, Download, RotateCcw } from 'lucide-react';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
@@ -42,6 +43,20 @@ export default function DeliveriesPage() {
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 20;
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useKeyboardShortcuts({
+    onSearch: useCallback(() => searchInputRef.current?.focus(), []),
+    onEscape: useCallback(() => {
+      if (showDetailModal) {
+        setShowDetailModal(false);
+        setSelectedDelivery(null);
+        setStatusHistory([]);
+      } else if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }, [showDetailModal]),
+  });
 
   useEffect(() => {
     setPage(1);
@@ -206,6 +221,7 @@ export default function DeliveriesPage() {
           <div className="relative w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Rechercher par code, adresse..."
               value={searchQuery}

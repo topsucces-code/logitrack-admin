@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Search, CheckCircle, Ban, XCircle, Eye, Phone, AlertCircle, Download, RotateCcw } from 'lucide-react';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useToast } from '../contexts/ToastContext';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
@@ -24,6 +25,19 @@ export default function DriversPage() {
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 20;
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useKeyboardShortcuts({
+    onSearch: useCallback(() => searchInputRef.current?.focus(), []),
+    onEscape: useCallback(() => {
+      if (showDetailModal) {
+        setShowDetailModal(false);
+        setSelectedDriver(null);
+      } else if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }, [showDetailModal]),
+  });
 
   useEffect(() => {
     setPage(1);
@@ -162,6 +176,7 @@ export default function DriversPage() {
           <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Rechercher un livreur..."
               value={searchQuery}

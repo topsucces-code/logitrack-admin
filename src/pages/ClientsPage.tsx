@@ -1,5 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Plus, Search, Key, Ban, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useToast } from '../contexts/ToastContext';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
@@ -32,6 +33,7 @@ export default function ClientsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 20;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<BusinessClient | null>(null);
@@ -51,6 +53,23 @@ export default function ClientsPage() {
     contact_phone: '',
     webhook_url: '',
     plan: 'starter',
+  });
+
+  useKeyboardShortcuts({
+    onSearch: useCallback(() => searchInputRef.current?.focus(), []),
+    onEscape: useCallback(() => {
+      if (showCreateModal) {
+        setShowCreateModal(false);
+        setCreateError(null);
+      } else if (showApiKeyModal) {
+        setShowApiKeyModal(false);
+        setNewApiKey(null);
+        setSelectedClient(null);
+        setApiKeyError(null);
+      } else if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }, [showCreateModal, showApiKeyModal]),
   });
 
   // Debounce search input
@@ -163,6 +182,7 @@ export default function ClientsPage() {
           <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Rechercher un client..."
               value={searchQuery}

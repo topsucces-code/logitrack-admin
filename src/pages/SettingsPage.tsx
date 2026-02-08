@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Save, Bell, Shield, Key, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Save, Bell, Shield, Key, Loader2, CheckCircle, AlertCircle, BellRing } from 'lucide-react';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
 import Card, { CardHeader } from '../components/ui/Card';
@@ -28,6 +28,63 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
+  const [notifToast, setNotifToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [testingNotif, setTestingNotif] = useState<string | null>(null);
+  const [requestingPermission, setRequestingPermission] = useState(false);
+
+  const showNotifToast = useCallback((type: 'success' | 'error', message: string) => {
+    setNotifToast({ type, message });
+    setTimeout(() => setNotifToast(null), 3000);
+  }, []);
+
+  const requestNotifPermission = useCallback(async () => {
+    if (typeof Notification === 'undefined') {
+      showNotifToast('error', 'Notifications non supportées par ce navigateur');
+      return false;
+    }
+    setRequestingPermission(true);
+    try {
+      const permission = await Notification.requestPermission();
+      setNotifPermission(permission);
+      if (permission === 'granted') {
+        showNotifToast('success', 'Notifications activées');
+        return true;
+      } else if (permission === 'denied') {
+        showNotifToast('error', 'Notifications bloquées par le navigateur');
+        return false;
+      }
+      return false;
+    } finally {
+      setRequestingPermission(false);
+    }
+  }, [showNotifToast]);
+
+  const sendTestNotification = useCallback(async (type: string, label: string) => {
+    setTestingNotif(type);
+    try {
+      if (typeof Notification === 'undefined') {
+        showNotifToast('error', 'Notifications non supportées par ce navigateur');
+        return;
+      }
+      if (Notification.permission !== 'granted') {
+        const granted = await requestNotifPermission();
+        if (!granted) return;
+      }
+      new Notification('LogiTrack Admin', {
+        body: `Test notification - ${label}`,
+        icon: '/favicon.ico',
+      });
+      showNotifToast('success', 'Notification test envoyée');
+    } catch (error) {
+      adminLogger.error('Error sending test notification', { error });
+      showNotifToast('error', 'Erreur lors de l\'envoi de la notification');
+    } finally {
+      setTestingNotif(null);
+    }
+  }, [showNotifToast, requestNotifPermission]);
 
   useEffect(() => {
     loadSettings();
@@ -225,6 +282,69 @@ export default function SettingsPage() {
             subtitle="Configuration des alertes"
           />
           <div className="space-y-4">
+            {/* Notification Toast */}
+            {notifToast && (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                notifToast.type === 'success'
+                  ? 'bg-green-50 border border-green-200 text-green-700'
+                  : 'bg-red-50 border border-red-200 text-red-700'
+              }`}>
+                {notifToast.type === 'success' ? (
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                )}
+                <span>{notifToast.message}</span>
+              </div>
+            )}
+
+            {/* Permission Status Banner */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-200">
+              <div className="flex items-center gap-2">
+                <BellRing className="w-5 h-5 text-gray-500" />
+                <div>
+                  <p className="text-sm font-medium">Notifications du navigateur</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={`inline-block w-2 h-2 rounded-full ${
+                      notifPermission === 'granted'
+                        ? 'bg-green-500'
+                        : notifPermission === 'denied'
+                          ? 'bg-red-500'
+                          : 'bg-gray-400'
+                    }`} />
+                    <span className={`text-xs ${
+                      notifPermission === 'granted'
+                        ? 'text-green-600'
+                        : notifPermission === 'denied'
+                          ? 'text-red-600'
+                          : 'text-gray-500'
+                    }`}>
+                      {notifPermission === 'granted'
+                        ? 'Autorisées'
+                        : notifPermission === 'denied'
+                          ? 'Bloquées'
+                          : 'Non configurées'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {notifPermission !== 'granted' && (
+                <button
+                  onClick={requestNotifPermission}
+                  disabled={requestingPermission || notifPermission === 'denied'}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                    notifPermission === 'denied'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-primary-500 text-white hover:bg-primary-600'
+                  }`}
+                >
+                  {requestingPermission && <Loader2 className="w-3 h-3 animate-spin" />}
+                  Activer les notifications
+                </button>
+              )}
+            </div>
+
+            {/* Notification Toggles */}
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center">
                 <Bell className="w-5 h-5 text-gray-400 mr-3" />
@@ -233,15 +353,27 @@ export default function SettingsPage() {
                   <p className="text-sm text-gray-500">Notification pour les nouvelles inscriptions</p>
                 </div>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={settings.notifications.new_drivers}
-                  onChange={(e) => updateNotification('new_drivers', e.target.checked)}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => sendTestNotification('new_drivers', 'Nouveaux livreurs')}
+                  disabled={testingNotif === 'new_drivers'}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                >
+                  {testingNotif === 'new_drivers' ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : null}
+                  Tester
+                </button>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={settings.notifications.new_drivers}
+                    onChange={(e) => updateNotification('new_drivers', e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
+                </label>
+              </div>
             </div>
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center">
@@ -251,15 +383,27 @@ export default function SettingsPage() {
                   <p className="text-sm text-gray-500">Alerte immédiate pour les incidents graves</p>
                 </div>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={settings.notifications.critical_incidents}
-                  onChange={(e) => updateNotification('critical_incidents', e.target.checked)}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => sendTestNotification('critical_incidents', 'Incidents critiques')}
+                  disabled={testingNotif === 'critical_incidents'}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                >
+                  {testingNotif === 'critical_incidents' ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : null}
+                  Tester
+                </button>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={settings.notifications.critical_incidents}
+                    onChange={(e) => updateNotification('critical_incidents', e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
+                </label>
+              </div>
             </div>
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center">
@@ -269,15 +413,27 @@ export default function SettingsPage() {
                   <p className="text-sm text-gray-500">Notification pour les demandes d'inscription</p>
                 </div>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={settings.notifications.new_companies}
-                  onChange={(e) => updateNotification('new_companies', e.target.checked)}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => sendTestNotification('new_companies', 'Nouvelles entreprises')}
+                  disabled={testingNotif === 'new_companies'}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                >
+                  {testingNotif === 'new_companies' ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : null}
+                  Tester
+                </button>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={settings.notifications.new_companies}
+                    onChange={(e) => updateNotification('new_companies', e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
+                </label>
+              </div>
             </div>
           </div>
         </Card>

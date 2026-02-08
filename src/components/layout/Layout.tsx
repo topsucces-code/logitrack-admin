@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import KeyboardShortcutsHelp from '../KeyboardShortcutsHelp';
 
 export default function Layout() {
   return (
@@ -8,6 +9,7 @@ export default function Layout() {
       <main className="ml-64">
         <Outlet />
       </main>
+      <KeyboardShortcutsHelp />
     </div>
   );
 }
