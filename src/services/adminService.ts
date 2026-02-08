@@ -302,20 +302,24 @@ export async function suspendDeliveryCompany(id: string): Promise<{ success: boo
 // Drivers
 // ========================================
 
-export async function getDrivers(status?: string): Promise<Driver[]> {
+export async function getDrivers(options?: { status?: string; limit?: number; offset?: number }): Promise<{ data: Driver[]; total: number }> {
+  const limit = options?.limit ?? 20;
+  const offset = options?.offset ?? 0;
+
   let query = supabase
     .from('logitrack_drivers')
-    .select('*, company:company_id(company_name)')
-    .order('created_at', { ascending: false });
+    .select('*, company:company_id(company_name)', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
 
-  if (status) query = query.eq('status', status);
+  if (options?.status) query = query.eq('status', options.status);
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) {
     adminLogger.error('Error fetching drivers', { error });
-    return [];
+    return { data: [], total: 0 };
   }
-  return data || [];
+  return { data: data || [], total: count ?? 0 };
 }
 
 export async function getDriver(id: string): Promise<Driver | null> {

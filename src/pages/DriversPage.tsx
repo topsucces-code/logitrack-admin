@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, CheckCircle, Ban, XCircle, Eye, Phone, AlertCircle } from 'lucide-react';
+import { Search, CheckCircle, Ban, XCircle, Eye, Phone, AlertCircle, Download } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
@@ -21,17 +21,29 @@ export default function DriversPage() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 20;
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
 
   useEffect(() => {
     loadDrivers();
-  }, [statusFilter]);
+  }, [statusFilter, page]);
 
   const loadDrivers = async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await getDrivers(statusFilter || undefined);
+      const { data, total } = await getDrivers({
+        status: statusFilter || undefined,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      });
       setDrivers(data);
+      setTotalCount(total);
     } catch (error) {
       adminLogger.error('Error loading drivers', { error });
       setLoadError('Erreur lors du chargement des chauffeurs');
@@ -103,6 +115,28 @@ export default function DriversPage() {
     return (driver.rating_sum / driver.rating_count).toFixed(1);
   };
 
+  const handleExportCSV = () => {
+    const headers = ['Nom', 'Téléphone', 'Type', 'Véhicule', 'Livraisons', 'Gains', 'Note', 'Statut'];
+    const rows = filteredDrivers.map(d => [
+      d.full_name,
+      d.phone,
+      d.company_id ? 'Entreprise' : 'Indépendant',
+      d.vehicle_type || '-',
+      d.total_deliveries,
+      d.total_earnings,
+      d.rating_count ? (d.rating_sum / d.rating_count).toFixed(1) : '-',
+      d.status,
+    ]);
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `livreurs-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen">
       <Header title="Livreurs" subtitle="Gérez les livreurs de la plateforme" />
@@ -138,12 +172,19 @@ export default function DriversPage() {
             <option value="suspended">Suspendu</option>
             <option value="rejected">Rejeté</option>
           </select>
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-5 gap-4 mb-6">
           <Card>
-            <p className="text-2xl font-bold">{drivers.length}</p>
+            <p className="text-2xl font-bold">{totalCount}</p>
             <p className="text-sm text-gray-500">Total</p>
           </Card>
           <Card>
@@ -287,6 +328,31 @@ export default function DriversPage() {
               </TableBody>
             </Table>
           )}
+          {/* Pagination */}
+          <div className="flex items-center justify-between px-4 py-3 border-t">
+            <p className="text-sm text-gray-500">
+              {totalCount} livreur{totalCount > 1 ? 's' : ''} au total
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                Précédent
+              </button>
+              <span className="text-sm text-gray-700">
+                Page {page} / {Math.ceil(totalCount / pageSize) || 1}
+              </span>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={page >= Math.ceil(totalCount / pageSize)}
+                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                Suivant
+              </button>
+            </div>
+          </div>
         </Card>
       </div>
 

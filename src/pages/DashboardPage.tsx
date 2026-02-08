@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
 import {
@@ -29,11 +30,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadStats();
-  }, []);
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     setLoadError(null);
     try {
       const [data, trend, revenue] = await Promise.all([
@@ -50,7 +47,31 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Load stats on mount
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  // Real-time subscription for auto-updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('dashboard-realtime')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'logitrack_deliveries' },
+        () => { loadStats(); }
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'logitrack_drivers' },
+        () => { loadStats(); }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadStats]);
 
   if (loading) {
     return (

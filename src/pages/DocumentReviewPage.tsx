@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Eye, CheckCircle, XCircle, Clock, FileText, User, AlertCircle } from 'lucide-react';
+import { Eye, CheckCircle, XCircle, Clock, FileText, User, AlertCircle, X } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
@@ -38,6 +38,7 @@ export default function DocumentReviewPage() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [processing, setProcessing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     loadDocuments();
@@ -328,8 +329,8 @@ export default function DocumentReviewPage() {
                       <img
                         src={selectedDoc.id_card_front_url}
                         alt="CNI Recto"
-                        className="w-full h-full object-cover cursor-pointer hover:opacity-90"
-                        onClick={() => window.open(selectedDoc.id_card_front_url!, '_blank')}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setPreviewImage(selectedDoc.id_card_front_url!)}
                       />
                     </div>
                   </div>
@@ -341,8 +342,8 @@ export default function DocumentReviewPage() {
                       <img
                         src={selectedDoc.id_card_back_url}
                         alt="CNI Verso"
-                        className="w-full h-full object-cover cursor-pointer hover:opacity-90"
-                        onClick={() => window.open(selectedDoc.id_card_back_url!, '_blank')}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setPreviewImage(selectedDoc.id_card_back_url!)}
                       />
                     </div>
                   </div>
@@ -354,8 +355,8 @@ export default function DocumentReviewPage() {
                       <img
                         src={selectedDoc.license_front_url}
                         alt="Permis Recto"
-                        className="w-full h-full object-cover cursor-pointer hover:opacity-90"
-                        onClick={() => window.open(selectedDoc.license_front_url!, '_blank')}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setPreviewImage(selectedDoc.license_front_url!)}
                       />
                     </div>
                   </div>
@@ -367,8 +368,8 @@ export default function DocumentReviewPage() {
                       <img
                         src={selectedDoc.license_back_url}
                         alt="Permis Verso"
-                        className="w-full h-full object-cover cursor-pointer hover:opacity-90"
-                        onClick={() => window.open(selectedDoc.license_back_url!, '_blank')}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setPreviewImage(selectedDoc.license_back_url!)}
                       />
                     </div>
                   </div>
@@ -380,8 +381,8 @@ export default function DocumentReviewPage() {
                       <img
                         src={selectedDoc.vehicle_registration_url}
                         alt="Carte grise"
-                        className="w-full h-full object-cover cursor-pointer hover:opacity-90"
-                        onClick={() => window.open(selectedDoc.vehicle_registration_url!, '_blank')}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setPreviewImage(selectedDoc.vehicle_registration_url!)}
                       />
                     </div>
                   </div>
@@ -393,8 +394,8 @@ export default function DocumentReviewPage() {
                       <img
                         src={selectedDoc.insurance_url}
                         alt="Assurance"
-                        className="w-full h-full object-cover cursor-pointer hover:opacity-90"
-                        onClick={() => window.open(selectedDoc.insurance_url!, '_blank')}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setPreviewImage(selectedDoc.insurance_url!)}
                       />
                     </div>
                   </div>
@@ -406,8 +407,8 @@ export default function DocumentReviewPage() {
                       <img
                         src={selectedDoc.profile_photo_url}
                         alt="Photo de profil"
-                        className="w-full h-full object-cover cursor-pointer hover:opacity-90"
-                        onClick={() => window.open(selectedDoc.profile_photo_url!, '_blank')}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setPreviewImage(selectedDoc.profile_photo_url!)}
                       />
                     </div>
                   </div>
@@ -468,6 +469,27 @@ export default function DocumentReviewPage() {
           </div>
         )}
       </Modal>
+
+      {/* Image Lightbox */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <button
+            onClick={() => setPreviewImage(null)}
+            className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <img
+            src={previewImage}
+            alt="Document"
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
