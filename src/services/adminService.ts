@@ -384,7 +384,10 @@ export async function getDeliveries(options?: {
   if (options?.clientId) query = query.eq('business_client_id', options.clientId);
   if (options?.companyId) query = query.eq('company_id', options.companyId);
   if (options?.driverId) query = query.eq('driver_id', options.driverId);
-  if (options?.status) query = query.eq('status', options.status);
+  if (options?.status) {
+    const statuses = options.status.split(',');
+    query = statuses.length > 1 ? query.in('status', statuses) : query.eq('status', options.status);
+  }
   if (options?.limit) query = query.limit(options.limit);
   if (options?.offset) query = query.range(options.offset, options.offset + (options.limit || 50) - 1);
 

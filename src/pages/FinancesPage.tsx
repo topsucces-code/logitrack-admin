@@ -29,7 +29,7 @@ export default function FinancesPage() {
     try {
       const [statsData, deliveriesData, revenue, distribution, pending] = await Promise.all([
         getDashboardStats(),
-        getDeliveries({ status: 'delivered', limit: 10 }),
+        getDeliveries({ status: 'delivered,completed', limit: 10 }),
         getRevenueByDay(7),
         getRevenueDistribution(),
         getPendingPayments(),
