@@ -42,7 +42,7 @@ export default function Sidebar() {
       {/* Mobile hamburger - fixed top-left */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-3 left-3 z-40 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md border dark:border-gray-700"
+        className="md:hidden fixed top-3 left-3 z-40 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md border dark:border-gray-700 no-print"
       >
         <Menu className="w-5 h-5 text-gray-700 dark:text-gray-300" />
       </button>
@@ -50,13 +50,13 @@ export default function Sidebar() {
       {/* Backdrop overlay for mobile */}
       {mobileOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black/50 z-40"
+          className="md:hidden fixed inset-0 bg-black/50 z-40 no-print"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white flex flex-col transform transition-transform duration-300 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white flex flex-col transform transition-transform duration-300 no-print ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         } md:translate-x-0`}
       >

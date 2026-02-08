@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, AlertCircle, Calendar, Download } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, AlertCircle, Calendar, Download, Printer } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -192,11 +192,25 @@ export default function FinancesPage() {
 
   return (
     <div className="min-h-screen">
+      {/* Print-only header - hidden on screen */}
+      <div className="print-only-header">
+        <h1>LogiTrack Africa</h1>
+        <h2>Rapport Financier</h2>
+        <p>{format(new Date(), "dd MMMM yyyy 'à' HH:mm", { locale: fr })}</p>
+      </div>
+
       <Header title="Finances" subtitle="Aperçu financier de la plateforme" />
 
       <div className="p-6 space-y-6">
         {/* Toolbar */}
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2 no-print">
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm"
+          >
+            <Printer className="w-4 h-4" />
+            Imprimer
+          </button>
           <button
             onClick={exportFinancesCSV}
             disabled={loading}
@@ -299,7 +313,7 @@ export default function FinancesPage() {
             />
 
             {/* Period Filter Buttons */}
-            <div className="flex flex-wrap items-center gap-2 mb-4">
+            <div className="flex flex-wrap items-center gap-2 mb-4 no-print">
               {([
                 ['7d', '7 jours'],
                 ['30d', '30 jours'],
@@ -323,7 +337,7 @@ export default function FinancesPage() {
 
             {/* Custom Date Range Inputs */}
             {selectedPeriod === 'custom' && (
-              <div className="flex flex-wrap items-end gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
+              <div className="flex flex-wrap items-end gap-3 mb-4 p-3 bg-gray-50 rounded-lg no-print">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Date de début</label>
                   <input
@@ -468,6 +482,11 @@ export default function FinancesPage() {
             </table>
           </div>
         </Card>
+
+        {/* Print-only footer */}
+        <div className="print-only-footer">
+          <p>Imprime le {format(new Date(), "dd/MM/yyyy 'a' HH:mm", { locale: fr })} - LogiTrack Africa</p>
+        </div>
       </div>
     </div>
   );

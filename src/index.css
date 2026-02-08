@@ -51,3 +51,132 @@ body {
   height: 100%;
   z-index: 0;
 }
+
+/* ===== Print-only elements (hidden on screen) ===== */
+.print-only-header,
+.print-only-footer {
+  display: none;
+}
+
+/* ===== Print Styles ===== */
+@media print {
+  /* Hide non-printable elements */
+  .no-print,
+  header,
+  aside {
+    display: none !important;
+  }
+
+  /* Remove sidebar offset - full width layout */
+  main.ml-64 {
+    margin-left: 0 !important;
+  }
+
+  /* Show print-only header */
+  .print-only-header {
+    display: block;
+    text-align: center;
+    padding: 20px 0 10px;
+    border-bottom: 2px solid #111827;
+    margin-bottom: 20px;
+  }
+
+  .print-only-header h1 {
+    font-size: 22pt;
+    font-weight: 700;
+    color: #111827;
+    margin: 0;
+  }
+
+  .print-only-header h2 {
+    font-size: 14pt;
+    font-weight: 500;
+    color: #4b5563;
+    margin: 4px 0 0;
+  }
+
+  .print-only-header p {
+    font-size: 10pt;
+    color: #6b7280;
+    margin: 6px 0 0;
+  }
+
+  /* Show print-only footer */
+  .print-only-footer {
+    display: block;
+    text-align: center;
+    padding-top: 16px;
+    border-top: 1px solid #d1d5db;
+    margin-top: 24px;
+    font-size: 9pt;
+    color: #9ca3af;
+  }
+
+  /* General print resets */
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-size: 11pt;
+    background: white !important;
+  }
+
+  /* Remove shadows, rounded corners decorations */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Cards - clean for print */
+  [class*="bg-white"],
+  [class*="bg-gray-50"] {
+    background: white !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 4px !important;
+  }
+
+  /* Preserve colored badges/indicators */
+  [class*="bg-green-100"],
+  [class*="bg-blue-100"],
+  [class*="bg-primary-100"],
+  [class*="bg-yellow-100"] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Tables - prevent row breaks */
+  table {
+    font-size: 10pt;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  /* Charts - constrain to fit page */
+  .recharts-wrapper,
+  .recharts-surface {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Grids - stack vertically for narrow print */
+  .grid {
+    page-break-inside: avoid;
+  }
+
+  /* Links - don't show href */
+  a {
+    text-decoration: none !important;
+    color: inherit !important;
+  }
+
+  /* Ensure page margins */
+  @page {
+    margin: 15mm;
+    size: A4;
+  }
+}
