@@ -332,7 +332,7 @@ export async function getDriver(id: string): Promise<Driver | null> {
 export async function approveDriver(driverId: string): Promise<{ success: boolean; error?: string }> {
   const { error } = await supabase
     .from('logitrack_drivers')
-    .update({ status: 'approved', is_verified: true })
+    .update({ status: 'approved' })
     .eq('id', driverId);
 
   if (error) return { success: false, error: error.message };
