@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Plus, Search, Key, Ban, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Search, Key, Ban, CheckCircle, AlertCircle, Loader2, RotateCcw, X } from 'lucide-react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { useFormAutosave } from '../hooks/useFormAutosave';
 import { useToast } from '../contexts/ToastContext';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
@@ -55,6 +56,40 @@ export default function ClientsPage() {
     plan: 'starter',
   });
 
+  const { hasDraft, restoreDraft, clearDraft, draftSavedAt, justSaved } = useFormAutosave('client', formData, showCreateModal);
+  const [showDraftBanner, setShowDraftBanner] = useState(false);
+
+  useEffect(() => {
+    if (showCreateModal && hasDraft) {
+      setShowDraftBanner(true);
+    } else if (!showCreateModal) {
+      setShowDraftBanner(false);
+    }
+  }, [showCreateModal, hasDraft]);
+
+  const handleRestoreDraft = () => {
+    const draft = restoreDraft();
+    if (draft) setFormData(draft);
+    setShowDraftBanner(false);
+  };
+
+  const handleIgnoreDraft = () => {
+    clearDraft();
+    setShowDraftBanner(false);
+  };
+
+  const formatTimeAgo = (date: Date | null): string => {
+    if (!date) return '';
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "a l'instant";
+    if (diffMin === 1) return 'il y a 1 minute';
+    if (diffMin < 60) return `il y a ${diffMin} minutes`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH === 1) return 'il y a 1 heure';
+    return `il y a ${diffH} heures`;
+  };
+
   useKeyboardShortcuts({
     onSearch: useCallback(() => searchInputRef.current?.focus(), []),
     onEscape: useCallback(() => {
@@ -108,6 +143,7 @@ export default function ClientsPage() {
     setCreateError(null);
     const result = await createBusinessClient(formData);
     if (result.success) {
+      clearDraft();
       setShowCreateModal(false);
       setFormData({ company_name: '', contact_email: '', contact_phone: '', webhook_url: '', plan: 'starter' as const });
       loadClients();
@@ -301,6 +337,29 @@ export default function ClientsPage() {
         size="md"
       >
         <div className="space-y-4">
+          {showDraftBanner && (
+            <div className="flex items-center justify-between gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm text-amber-800">
+                Brouillon sauvegardé {formatTimeAgo(draftSavedAt)}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRestoreDraft}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 rounded transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Restaurer
+                </button>
+                <button
+                  onClick={handleIgnoreDraft}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                  Ignorer
+                </button>
+              </div>
+            </div>
+          )}
           {createError && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
               <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
@@ -344,11 +403,16 @@ export default function ClientsPage() {
               { value: 'enterprise', label: 'Enterprise' },
             ]}
           />
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={() => setShowCreateModal(false)}>
-              Annuler
-            </Button>
-            <Button onClick={handleCreateClient}>Créer le client</Button>
+          <div className="flex items-center justify-between pt-4">
+            <p className={`text-xs text-gray-400 transition-opacity duration-300 ${justSaved ? 'opacity-100' : 'opacity-0'}`}>
+              Brouillon sauvegardé
+            </p>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" onClick={() => setShowCreateModal(false)}>
+                Annuler
+              </Button>
+              <Button onClick={handleCreateClient}>Créer le client</Button>
+            </div>
           </div>
         </div>
       </Modal>

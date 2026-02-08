@@ -42,9 +42,9 @@ export default function Sidebar() {
       {/* Mobile hamburger - fixed top-left */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-3 left-3 z-40 p-2 bg-white rounded-lg shadow-md border"
+        className="md:hidden fixed top-3 left-3 z-40 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md border dark:border-gray-700"
       >
-        <Menu className="w-5 h-5 text-gray-700" />
+        <Menu className="w-5 h-5 text-gray-700 dark:text-gray-300" />
       </button>
 
       {/* Backdrop overlay for mobile */}

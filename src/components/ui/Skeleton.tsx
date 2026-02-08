@@ -5,7 +5,7 @@
 
 /** A single pulsing block used as a building primitive. */
 function SkeletonBlock({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse bg-gray-200 rounded ${className}`} />;
+  return <div className={`animate-pulse bg-gray-200 dark:bg-gray-700 rounded ${className}`} />;
 }
 
 /**
@@ -15,14 +15,14 @@ function SkeletonBlock({ className = '' }: { className?: string }) {
  */
 export function SkeletonStatCard() {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
       <div className="flex items-center justify-between animate-pulse">
         <div className="space-y-2 flex-1">
           <SkeletonBlock className="h-4 w-24" />
           <SkeletonBlock className="h-7 w-20" />
           <SkeletonBlock className="h-3.5 w-28" />
         </div>
-        <div className="w-12 h-12 bg-gray-200 rounded-xl flex-shrink-0" />
+        <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl flex-shrink-0" />
       </div>
     </div>
   );
@@ -34,7 +34,7 @@ export function SkeletonStatCard() {
  */
 export function SkeletonChartCard({ className = '' }: { className?: string }) {
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 ${className}`}>
+    <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 ${className}`}>
       <div className="animate-pulse">
         {/* Title placeholder */}
         <SkeletonBlock className="h-5 w-48 mb-4" />
@@ -68,7 +68,7 @@ export function SkeletonTableRow({ columns = 6 }: { columns?: number }) {
  */
 export function SkeletonTable({ rows = 5, columns = 6 }: { rows?: number; columns?: number }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
       <div className="animate-pulse">
         {/* Table title */}
         <SkeletonBlock className="h-5 w-56 mb-4" />

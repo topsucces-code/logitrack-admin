@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Save, Bell, Shield, Key, Loader2, CheckCircle, AlertCircle, BellRing } from 'lucide-react';
+import { Save, Bell, Shield, Key, Loader2, CheckCircle, AlertCircle, BellRing, Sun, Moon } from 'lucide-react';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
 import Card, { CardHeader } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { getSettings, updateSettings } from '../services/adminService';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface SettingsState {
   general: { platform_name: string; contact_email: string; support_phone: string };
@@ -24,6 +25,7 @@ const DEFAULT_SETTINGS: SettingsState = {
 };
 
 export default function SettingsPage() {
+  const { isDark, toggleTheme } = useTheme();
   const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -179,6 +181,38 @@ export default function SettingsPage() {
             <span>Erreur lors de l'enregistrement</span>
           </div>
         )}
+
+        {/* Appearance */}
+        <Card>
+          <CardHeader
+            title="Apparence"
+            subtitle="Personnalisation de l'interface"
+          />
+          <div className="flex items-center justify-between py-2">
+            <div className="flex items-center">
+              {isDark ? (
+                <Moon className="w-5 h-5 text-gray-400 dark:text-gray-500 mr-3" />
+              ) : (
+                <Sun className="w-5 h-5 text-gray-400 mr-3" />
+              )}
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Mode sombre</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {isDark ? 'Le mode sombre est activé' : 'Le mode clair est activé'}
+                </p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={isDark}
+                onChange={toggleTheme}
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
+            </label>
+          </div>
+        </Card>
 
         {/* General Settings */}
         <Card>

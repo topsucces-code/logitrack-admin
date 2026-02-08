@@ -64,13 +64,13 @@ export default function NotificationPanel({ notifications, onClose, onRefresh }:
   return (
     <div
       ref={panelRef}
-      className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden"
+      className="absolute right-0 top-full mt-2 w-96 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-2">
-          <Bell className="w-4 h-4 text-gray-500" />
-          <h3 className="font-semibold text-gray-900">Notifications</h3>
+          <Bell className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          <h3 className="font-semibold text-gray-900 dark:text-white">Notifications</h3>
           {unreadCount > 0 && (
             <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
               {unreadCount}
@@ -112,8 +112,8 @@ export default function NotificationPanel({ notifications, onClose, onRefresh }:
               <button
                 key={notification.id}
                 onClick={() => handleClick(notification)}
-                className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50 ${
-                  !notification.is_read ? 'bg-blue-50/50' : ''
+                className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-50 dark:border-gray-700 ${
+                  !notification.is_read ? 'bg-blue-50/50 dark:bg-blue-900/20' : ''
                 }`}
               >
                 <div className={`w-8 h-8 ${config.bg} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
@@ -121,15 +121,15 @@ export default function NotificationPanel({ notifications, onClose, onRefresh }:
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className={`text-sm ${!notification.is_read ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+                    <p className={`text-sm ${!notification.is_read ? 'font-semibold text-gray-900 dark:text-white' : 'font-medium text-gray-700 dark:text-gray-300'}`}>
                       {notification.title}
                     </p>
                     {!notification.is_read && (
                       <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">{notification.message}</p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{notification.message}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                     {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true, locale: fr })}
                   </p>
                 </div>

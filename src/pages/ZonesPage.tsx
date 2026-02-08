@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Edit2, MapPin, AlertCircle } from 'lucide-react';
+import { Plus, Search, Edit2, MapPin, AlertCircle, RotateCcw, X } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
+import { useFormAutosave } from '../hooks/useFormAutosave';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
@@ -32,6 +33,42 @@ export default function ZonesPage() {
     min_price: 500,
     max_price: 0,
   });
+
+  const isModalOpen = showCreateModal || !!editingZone;
+  const { hasDraft, restoreDraft, clearDraft, draftSavedAt, justSaved } = useFormAutosave('zone', formData, isModalOpen);
+  const [showDraftBanner, setShowDraftBanner] = useState(false);
+
+  // Show draft banner when modal opens and draft exists (only for create, not edit)
+  useEffect(() => {
+    if (showCreateModal && hasDraft) {
+      setShowDraftBanner(true);
+    } else if (!isModalOpen) {
+      setShowDraftBanner(false);
+    }
+  }, [showCreateModal, hasDraft, isModalOpen]);
+
+  const handleRestoreDraft = () => {
+    const draft = restoreDraft();
+    if (draft) setFormData(draft);
+    setShowDraftBanner(false);
+  };
+
+  const handleIgnoreDraft = () => {
+    clearDraft();
+    setShowDraftBanner(false);
+  };
+
+  const formatTimeAgo = (date: Date | null): string => {
+    if (!date) return '';
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "a l'instant";
+    if (diffMin === 1) return 'il y a 1 minute';
+    if (diffMin < 60) return `il y a ${diffMin} minutes`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH === 1) return 'il y a 1 heure';
+    return `il y a ${diffH} heures`;
+  };
 
   const validateField = (field: string, data = formData): string => {
     switch (field) {
@@ -129,6 +166,7 @@ export default function ZonesPage() {
     if (!validateForm()) return;
     const result = await createZone(formData);
     if (result.success) {
+      clearDraft();
       setShowCreateModal(false);
       resetForm();
       loadZones();
@@ -143,6 +181,7 @@ export default function ZonesPage() {
     if (!validateForm()) return;
     const result = await updateZone(editingZone.id, formData);
     if (result.success) {
+      clearDraft();
       setEditingZone(null);
       resetForm();
       loadZones();
@@ -305,6 +344,29 @@ export default function ZonesPage() {
         size="md"
       >
         <div className="space-y-4">
+          {showDraftBanner && (
+            <div className="flex items-center justify-between gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm text-amber-800">
+                Brouillon sauvegardé {formatTimeAgo(draftSavedAt)}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRestoreDraft}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 rounded transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Restaurer
+                </button>
+                <button
+                  onClick={handleIgnoreDraft}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                  Ignorer
+                </button>
+              </div>
+            </div>
+          )}
           {formError && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
               <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
@@ -378,23 +440,28 @@ export default function ZonesPage() {
               helperText="0 = pas de limite"
             />
           </div>
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowCreateModal(false);
-                setEditingZone(null);
-                resetForm();
-              }}
-            >
-              Annuler
-            </Button>
-            <Button
-              onClick={editingZone ? handleUpdateZone : handleCreateZone}
-              disabled={hasFormErrors}
-            >
-              {editingZone ? 'Enregistrer' : 'Créer la zone'}
-            </Button>
+          <div className="flex items-center justify-between pt-4">
+            <p className={`text-xs text-gray-400 transition-opacity duration-300 ${justSaved ? 'opacity-100' : 'opacity-0'}`}>
+              Brouillon sauvegardé
+            </p>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setEditingZone(null);
+                  resetForm();
+                }}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={editingZone ? handleUpdateZone : handleCreateZone}
+                disabled={hasFormErrors}
+              >
+                {editingZone ? 'Enregistrer' : 'Créer la zone'}
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>
