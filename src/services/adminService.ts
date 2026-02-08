@@ -92,17 +92,31 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 // Business Clients
 // ========================================
 
-export async function getBusinessClients(): Promise<BusinessClient[]> {
-  const { data, error } = await supabase
-    .from('logitrack_business_clients')
-    .select('*')
-    .order('created_at', { ascending: false });
+export async function getBusinessClients(options?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}): Promise<{ data: BusinessClient[]; total: number }> {
+  const limit = options?.limit ?? 20;
+  const offset = options?.offset ?? 0;
 
+  let query = supabase
+    .from('logitrack_business_clients')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (options?.search) {
+    const term = `%${options.search}%`;
+    query = query.or(`company_name.ilike.${term},contact_email.ilike.${term},contact_phone.ilike.${term}`);
+  }
+
+  const { data, error, count } = await query;
   if (error) {
     adminLogger.error('Error fetching business clients', { error });
-    return [];
+    return { data: [], total: 0 };
   }
-  return data || [];
+  return { data: data || [], total: count ?? 0 };
 }
 
 export async function getBusinessClient(id: string): Promise<BusinessClient | null> {

@@ -22,6 +22,7 @@ export default function ZonesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     name: '',
     city: '',
@@ -31,6 +32,80 @@ export default function ZonesPage() {
     min_price: 500,
     max_price: 0,
   });
+
+  const validateField = (field: string, data = formData): string => {
+    switch (field) {
+      case 'name':
+        if (!data.name.trim()) return 'Le nom de la zone est requis';
+        return '';
+      case 'city':
+        if (!data.city.trim()) return 'La ville est requise';
+        return '';
+      case 'base_price':
+        if (data.base_price < 0) return 'Le prix de base doit être supérieur ou égal à 0';
+        return '';
+      case 'price_per_km':
+        if (data.price_per_km <= 0) return 'Le prix par km doit être supérieur à 0';
+        return '';
+      case 'min_price':
+        if (data.min_price < 0) return 'Le prix minimum doit être supérieur ou égal à 0';
+        return '';
+      case 'max_price':
+        if (data.max_price > 0 && data.max_price < data.min_price)
+          return 'Le prix maximum doit être supérieur ou égal au prix minimum';
+        return '';
+      default:
+        return '';
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const fields = ['name', 'city', 'base_price', 'price_per_km', 'min_price', 'max_price'];
+    const errors: Record<string, string> = {};
+    for (const field of fields) {
+      const error = validateField(field);
+      if (error) errors[field] = error;
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleFieldBlur = (field: string) => {
+    const error = validateField(field);
+    setFormErrors((prev) => {
+      if (error) return { ...prev, [field]: error };
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const handleFieldChange = (field: string, value: string | number) => {
+    const newData = { ...formData, [field]: value };
+    setFormData(newData);
+    // Clear error for this field if it was previously invalid
+    if (formErrors[field]) {
+      const error = validateField(field, newData);
+      setFormErrors((prev) => {
+        if (error) return prev;
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+    // Also revalidate max_price when min_price changes (cross-field dependency)
+    if (field === 'min_price' && formErrors['max_price']) {
+      const maxError = validateField('max_price', newData);
+      setFormErrors((prev) => {
+        if (maxError) return prev;
+        const next = { ...prev };
+        delete next['max_price'];
+        return next;
+      });
+    }
+  };
+
+  const hasFormErrors = Object.keys(formErrors).length > 0;
 
   useEffect(() => {
     loadZones();
@@ -51,6 +126,7 @@ export default function ZonesPage() {
 
   const handleCreateZone = async () => {
     setFormError(null);
+    if (!validateForm()) return;
     const result = await createZone(formData);
     if (result.success) {
       setShowCreateModal(false);
@@ -64,6 +140,7 @@ export default function ZonesPage() {
   const handleUpdateZone = async () => {
     if (!editingZone) return;
     setFormError(null);
+    if (!validateForm()) return;
     const result = await updateZone(editingZone.id, formData);
     if (result.success) {
       setEditingZone(null);
@@ -91,6 +168,7 @@ export default function ZonesPage() {
       min_price: 500,
       max_price: 0,
     });
+    setFormErrors({});
   };
 
   const openEditModal = (zone: Zone) => {
@@ -220,6 +298,7 @@ export default function ZonesPage() {
           setShowCreateModal(false);
           setEditingZone(null);
           setFormError(null);
+          setFormErrors({});
           resetForm();
         }}
         title={editingZone ? 'Modifier la zone' : 'Nouvelle zone'}
@@ -235,16 +314,20 @@ export default function ZonesPage() {
           <Input
             label="Nom de la zone"
             value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            onChange={(e) => handleFieldChange('name', e.target.value)}
+            onBlur={() => handleFieldBlur('name')}
             placeholder="Ex: Cocody"
+            error={formErrors.name}
             required
           />
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Ville"
               value={formData.city}
-              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              onChange={(e) => handleFieldChange('city', e.target.value)}
+              onBlur={() => handleFieldBlur('city')}
               placeholder="Abidjan"
+              error={formErrors.city}
               required
             />
             <Input
@@ -259,14 +342,18 @@ export default function ZonesPage() {
               label="Prix de base (FCFA)"
               type="number"
               value={formData.base_price}
-              onChange={(e) => setFormData({ ...formData, base_price: parseInt(e.target.value) || 0 })}
+              onChange={(e) => handleFieldChange('base_price', parseInt(e.target.value) || 0)}
+              onBlur={() => handleFieldBlur('base_price')}
+              error={formErrors.base_price}
               min={0}
             />
             <Input
               label="Prix par km (FCFA)"
               type="number"
               value={formData.price_per_km}
-              onChange={(e) => setFormData({ ...formData, price_per_km: parseInt(e.target.value) || 0 })}
+              onChange={(e) => handleFieldChange('price_per_km', parseInt(e.target.value) || 0)}
+              onBlur={() => handleFieldBlur('price_per_km')}
+              error={formErrors.price_per_km}
               min={0}
             />
           </div>
@@ -275,14 +362,18 @@ export default function ZonesPage() {
               label="Prix minimum (FCFA)"
               type="number"
               value={formData.min_price}
-              onChange={(e) => setFormData({ ...formData, min_price: parseInt(e.target.value) || 0 })}
+              onChange={(e) => handleFieldChange('min_price', parseInt(e.target.value) || 0)}
+              onBlur={() => handleFieldBlur('min_price')}
+              error={formErrors.min_price}
               min={0}
             />
             <Input
               label="Prix maximum (FCFA)"
               type="number"
               value={formData.max_price}
-              onChange={(e) => setFormData({ ...formData, max_price: parseInt(e.target.value) || 0 })}
+              onChange={(e) => handleFieldChange('max_price', parseInt(e.target.value) || 0)}
+              onBlur={() => handleFieldBlur('max_price')}
+              error={formErrors.max_price}
               min={0}
               helperText="0 = pas de limite"
             />
@@ -298,7 +389,10 @@ export default function ZonesPage() {
             >
               Annuler
             </Button>
-            <Button onClick={editingZone ? handleUpdateZone : handleCreateZone}>
+            <Button
+              onClick={editingZone ? handleUpdateZone : handleCreateZone}
+              disabled={hasFormErrors}
+            >
               {editingZone ? 'Enregistrer' : 'Créer la zone'}
             </Button>
           </div>

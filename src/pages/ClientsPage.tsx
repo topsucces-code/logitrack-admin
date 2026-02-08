@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Plus, Search, Key, Ban, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { adminLogger } from '../utils/logger';
@@ -27,6 +27,11 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 20;
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<BusinessClient | null>(null);
@@ -48,16 +53,30 @@ export default function ClientsPage() {
     plan: 'starter',
   });
 
+  // Debounce search input
+  useEffect(() => {
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [searchQuery]);
+
   useEffect(() => {
     loadClients();
-  }, []);
+  }, [debouncedSearch, page]);
 
   const loadClients = async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await getBusinessClients();
+      const { data, total } = await getBusinessClients({
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+        search: debouncedSearch || undefined,
+      });
       setClients(data);
+      setTotalCount(total);
     } catch (error) {
       adminLogger.error('Error loading clients', { error });
       setLoadError('Erreur lors du chargement des clients');
@@ -102,12 +121,6 @@ export default function ClientsPage() {
     showSuccess(client.status === 'active' ? 'Client suspendu' : 'Client activé');
     loadClients();
   };
-
-  const filteredClients = clients.filter(
-    (client) =>
-      client.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.contact_email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -182,7 +195,7 @@ export default function ClientsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredClients.map((client) => (
+                {clients.map((client) => (
                   <TableRow key={client.id}>
                     <TableCell>
                       <div className="font-medium">{client.company_name}</div>
@@ -232,6 +245,31 @@ export default function ClientsPage() {
               </TableBody>
             </Table>
           )}
+          {/* Pagination */}
+          <div className="flex items-center justify-between px-4 py-3 border-t">
+            <p className="text-sm text-gray-500">
+              {totalCount} client{totalCount > 1 ? 's' : ''} au total
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                Précédent
+              </button>
+              <span className="text-sm text-gray-700">
+                Page {page} / {Math.ceil(totalCount / pageSize) || 1}
+              </span>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={page >= Math.ceil(totalCount / pageSize)}
+                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                Suivant
+              </button>
+            </div>
+          </div>
         </Card>
       </div>
 
