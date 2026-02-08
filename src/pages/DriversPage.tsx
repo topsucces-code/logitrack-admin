@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, memo } from 'react';
 import { Search, CheckCircle, Ban, XCircle, Eye, Phone, AlertCircle, Download, RotateCcw } from 'lucide-react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useToast } from '../contexts/ToastContext';
@@ -12,6 +12,146 @@ import Modal from '../components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { getDrivers, approveDriver, suspendDriver, rejectDriver } from '../services/adminService';
 import type { Driver } from '../types';
+
+// --- Helpers (pure functions, no component state dependency) ---
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'approved':
+      return <Badge variant="success">Approuvé</Badge>;
+    case 'pending':
+      return <Badge variant="warning">En attente</Badge>;
+    case 'suspended':
+      return <Badge variant="danger">Suspendu</Badge>;
+    case 'rejected':
+      return <Badge variant="danger">Rejeté</Badge>;
+    default:
+      return <Badge>{status}</Badge>;
+  }
+};
+
+const getOnlineStatus = (driver: Driver) => {
+  if (driver.status !== 'approved') return null;
+  return driver.is_online ? (
+    <span className="flex items-center text-green-600 text-sm">
+      <span className="w-2 h-2 bg-green-500 rounded-full mr-1.5 animate-pulse" />
+      En ligne
+    </span>
+  ) : (
+    <span className="flex items-center text-gray-400 text-sm">
+      <span className="w-2 h-2 bg-gray-300 rounded-full mr-1.5" />
+      Hors ligne
+    </span>
+  );
+};
+
+const getRating = (driver: Driver) => {
+  if (!driver.rating_count) return '-';
+  return (driver.rating_sum / driver.rating_count).toFixed(1);
+};
+
+// --- Memoized row component ---
+
+interface DriverRowProps {
+  driver: Driver;
+  onViewDetail: (driver: Driver) => void;
+  onApprove: (id: string) => void;
+  onSuspend: (id: string) => void;
+  onReject: (id: string) => void;
+}
+
+const DriverRow = memo(function DriverRow({ driver, onViewDetail, onApprove, onSuspend, onReject }: DriverRowProps) {
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="flex items-center">
+          <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center mr-3">
+            <span className="text-primary-600 font-semibold">
+              {driver.full_name.charAt(0)}
+            </span>
+          </div>
+          <div>
+            <div className="font-medium">{driver.full_name}</div>
+            <div className="text-xs text-gray-500">{driver.phone}</div>
+            {getOnlineStatus(driver)}
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <Badge variant={driver.company_id ? 'info' : 'default'}>
+          {driver.company_id ? 'Entreprise' : 'Indépendant'}
+        </Badge>
+        {driver.company && (
+          <p className="text-xs text-gray-500 mt-1">{driver.company.company_name}</p>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="text-sm">{driver.vehicle_type}</div>
+        {driver.vehicle_plate && (
+          <div className="text-xs text-gray-500">{driver.vehicle_plate}</div>
+        )}
+      </TableCell>
+      <TableCell>{driver.total_deliveries}</TableCell>
+      <TableCell>{formatCurrency(driver.total_earnings)}</TableCell>
+      <TableCell>
+        <div className="flex items-center">
+          <span className="text-yellow-500 mr-1">★</span>
+          {getRating(driver)}
+        </div>
+      </TableCell>
+      <TableCell>{getStatusBadge(driver.status)}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onViewDetail(driver)}
+            className="p-1.5 text-gray-400 hover:text-primary-500 hover:bg-gray-100 rounded-lg"
+            title="Voir détails"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          {driver.status === 'pending' && (
+            <>
+              <button
+                onClick={() => onApprove(driver.id)}
+                className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-lg"
+                title="Approuver"
+              >
+                <CheckCircle className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => onReject(driver.id)}
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                title="Rejeter"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </>
+          )}
+          {driver.status === 'approved' && (
+            <button
+              onClick={() => onSuspend(driver.id)}
+              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+              title="Suspendre"
+            >
+              <Ban className="w-4 h-4" />
+            </button>
+          )}
+          {driver.status === 'suspended' && (
+            <button
+              onClick={() => onApprove(driver.id)}
+              className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-lg"
+              title="Réactiver"
+            >
+              <CheckCircle className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+// --- Main page component ---
 
 export default function DriversPage() {
   const { showSuccess, showError } = useToast();
@@ -66,26 +206,31 @@ export default function DriversPage() {
     }
   };
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = useCallback(async (id: string) => {
     const result = await approveDriver(id);
     if (!result.success) { showError(result.error || 'Erreur lors de l\'approbation'); return; }
     showSuccess('Chauffeur approuvé');
     loadDrivers();
-  };
+  }, [statusFilter, page]);
 
-  const handleSuspend = async (id: string) => {
+  const handleSuspend = useCallback(async (id: string) => {
     const result = await suspendDriver(id);
     if (!result.success) { showError(result.error || 'Erreur lors de la suspension'); return; }
     showSuccess('Chauffeur suspendu');
     loadDrivers();
-  };
+  }, [statusFilter, page]);
 
-  const handleReject = async (id: string) => {
+  const handleReject = useCallback(async (id: string) => {
     const result = await rejectDriver(id);
     if (!result.success) { showError(result.error || 'Erreur lors du rejet'); return; }
     showSuccess('Chauffeur rejeté');
     loadDrivers();
-  };
+  }, [statusFilter, page]);
+
+  const handleViewDetail = useCallback((driver: Driver) => {
+    setSelectedDriver(driver);
+    setShowDetailModal(true);
+  }, []);
 
   const activeFilterCount = [searchQuery, statusFilter].filter(Boolean).length;
   const hasActiveFilters = activeFilterCount > 0;
@@ -100,42 +245,6 @@ export default function DriversPage() {
       driver.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       driver.phone.includes(searchQuery)
   );
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <Badge variant="success">Approuvé</Badge>;
-      case 'pending':
-        return <Badge variant="warning">En attente</Badge>;
-      case 'suspended':
-        return <Badge variant="danger">Suspendu</Badge>;
-      case 'rejected':
-        return <Badge variant="danger">Rejeté</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
-  };
-
-  const getOnlineStatus = (driver: Driver) => {
-    if (driver.status !== 'approved') return null;
-    return driver.is_online ? (
-      <span className="flex items-center text-green-600 text-sm">
-        <span className="w-2 h-2 bg-green-500 rounded-full mr-1.5 animate-pulse" />
-        En ligne
-      </span>
-    ) : (
-      <span className="flex items-center text-gray-400 text-sm">
-        <span className="w-2 h-2 bg-gray-300 rounded-full mr-1.5" />
-        Hors ligne
-      </span>
-    );
-  };
-
-
-  const getRating = (driver: Driver) => {
-    if (!driver.rating_count) return '-';
-    return (driver.rating_sum / driver.rating_count).toFixed(1);
-  };
 
   const handleExportCSV = () => {
     const headers = ['Nom', 'Téléphone', 'Type', 'Véhicule', 'Livraisons', 'Gains', 'Note', 'Statut'];
@@ -284,95 +393,14 @@ export default function DriversPage() {
               </TableHeader>
               <TableBody>
                 {filteredDrivers.map((driver) => (
-                  <TableRow key={driver.id}>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center mr-3">
-                          <span className="text-primary-600 font-semibold">
-                            {driver.full_name.charAt(0)}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="font-medium">{driver.full_name}</div>
-                          <div className="text-xs text-gray-500">{driver.phone}</div>
-                          {getOnlineStatus(driver)}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={driver.company_id ? 'info' : 'default'}>
-                        {driver.company_id ? 'Entreprise' : 'Indépendant'}
-                      </Badge>
-                      {driver.company && (
-                        <p className="text-xs text-gray-500 mt-1">{driver.company.company_name}</p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">{driver.vehicle_type}</div>
-                      {driver.vehicle_plate && (
-                        <div className="text-xs text-gray-500">{driver.vehicle_plate}</div>
-                      )}
-                    </TableCell>
-                    <TableCell>{driver.total_deliveries}</TableCell>
-                    <TableCell>{formatCurrency(driver.total_earnings)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <span className="text-yellow-500 mr-1">★</span>
-                        {getRating(driver)}
-                      </div>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(driver.status)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => {
-                            setSelectedDriver(driver);
-                            setShowDetailModal(true);
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-primary-500 hover:bg-gray-100 rounded-lg"
-                          title="Voir détails"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        {driver.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => handleApprove(driver.id)}
-                              className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-lg"
-                              title="Approuver"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleReject(driver.id)}
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
-                              title="Rejeter"
-                            >
-                              <XCircle className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                        {driver.status === 'approved' && (
-                          <button
-                            onClick={() => handleSuspend(driver.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
-                            title="Suspendre"
-                          >
-                            <Ban className="w-4 h-4" />
-                          </button>
-                        )}
-                        {driver.status === 'suspended' && (
-                          <button
-                            onClick={() => handleApprove(driver.id)}
-                            className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-lg"
-                            title="Réactiver"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <DriverRow
+                    key={driver.id}
+                    driver={driver}
+                    onViewDetail={handleViewDetail}
+                    onApprove={handleApprove}
+                    onSuspend={handleSuspend}
+                    onReject={handleReject}
+                  />
                 ))}
               </TableBody>
             </Table>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 import { AlertTriangle, CheckCircle, Clock, Eye, AlertCircle, RotateCcw, Search } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { adminLogger } from '../utils/logger';
@@ -12,6 +12,91 @@ import { getIncidents, updateIncidentStatus } from '../services/adminService';
 import type { Incident } from '../types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+
+// --- Helpers (pure functions, no component state dependency) ---
+
+const getStatusBadge = (status: string) => {
+  const config: Record<string, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info'; label: string }> = {
+    open: { variant: 'danger', label: 'Ouvert' },
+    investigating: { variant: 'warning', label: 'En cours' },
+    resolved: { variant: 'success', label: 'Résolu' },
+    closed: { variant: 'default', label: 'Fermé' },
+    escalated: { variant: 'danger', label: 'Escaladé' },
+  };
+  const c = config[status] || { variant: 'default', label: status };
+  return <Badge variant={c.variant}>{c.label}</Badge>;
+};
+
+const getSeverityBadge = (severity: string) => {
+  const config: Record<string, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info'; label: string }> = {
+    low: { variant: 'info', label: 'Faible' },
+    medium: { variant: 'warning', label: 'Moyen' },
+    high: { variant: 'danger', label: 'Élevé' },
+    critical: { variant: 'danger', label: 'Critique' },
+  };
+  const c = config[severity] || { variant: 'default', label: severity };
+  return <Badge variant={c.variant}>{c.label}</Badge>;
+};
+
+const getIncidentTypeLabel = (type: string) => {
+  const labels: Record<string, string> = {
+    package_damaged: 'Colis endommagé',
+    package_lost: 'Colis perdu',
+    delivery_delayed: 'Retard de livraison',
+    wrong_address: 'Mauvaise adresse',
+    customer_unavailable: 'Client absent',
+    driver_misconduct: 'Comportement livreur',
+    payment_issue: 'Problème de paiement',
+    other: 'Autre',
+  };
+  return labels[type] || type;
+};
+
+// --- Memoized row component ---
+
+interface IncidentRowProps {
+  incident: Incident;
+  onViewDetail: (incident: Incident) => void;
+}
+
+const IncidentRow = memo(function IncidentRow({ incident, onViewDetail }: IncidentRowProps) {
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="max-w-xs">
+          <div className="font-medium truncate">{incident.title}</div>
+          <div className="text-xs text-gray-500 truncate">{incident.description}</div>
+        </div>
+      </TableCell>
+      <TableCell>{getIncidentTypeLabel(incident.incident_type)}</TableCell>
+      <TableCell>
+        {incident.delivery ? (
+          <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+            {incident.delivery.tracking_code}
+          </code>
+        ) : (
+          '-'
+        )}
+      </TableCell>
+      <TableCell>{getSeverityBadge(incident.severity)}</TableCell>
+      <TableCell>{getStatusBadge(incident.status)}</TableCell>
+      <TableCell>
+        {format(new Date(incident.created_at), 'dd/MM/yy HH:mm', { locale: fr })}
+      </TableCell>
+      <TableCell>
+        <button
+          onClick={() => onViewDetail(incident)}
+          className="p-1.5 text-gray-400 hover:text-primary-500 hover:bg-gray-100 rounded-lg"
+          title="Voir détails"
+        >
+          <Eye className="w-4 h-4" />
+        </button>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+// --- Main page component ---
 
 export default function IncidentsPage() {
   const { showSuccess, showError } = useToast();
@@ -73,42 +158,10 @@ export default function IncidentsPage() {
     loadIncidents();
   };
 
-  const getStatusBadge = (status: string) => {
-    const config: Record<string, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info'; label: string }> = {
-      open: { variant: 'danger', label: 'Ouvert' },
-      investigating: { variant: 'warning', label: 'En cours' },
-      resolved: { variant: 'success', label: 'Résolu' },
-      closed: { variant: 'default', label: 'Fermé' },
-      escalated: { variant: 'danger', label: 'Escaladé' },
-    };
-    const c = config[status] || { variant: 'default', label: status };
-    return <Badge variant={c.variant}>{c.label}</Badge>;
-  };
-
-  const getSeverityBadge = (severity: string) => {
-    const config: Record<string, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info'; label: string }> = {
-      low: { variant: 'info', label: 'Faible' },
-      medium: { variant: 'warning', label: 'Moyen' },
-      high: { variant: 'danger', label: 'Élevé' },
-      critical: { variant: 'danger', label: 'Critique' },
-    };
-    const c = config[severity] || { variant: 'default', label: severity };
-    return <Badge variant={c.variant}>{c.label}</Badge>;
-  };
-
-  const getIncidentTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      package_damaged: 'Colis endommagé',
-      package_lost: 'Colis perdu',
-      delivery_delayed: 'Retard de livraison',
-      wrong_address: 'Mauvaise adresse',
-      customer_unavailable: 'Client absent',
-      driver_misconduct: 'Comportement livreur',
-      payment_issue: 'Problème de paiement',
-      other: 'Autre',
-    };
-    return labels[type] || type;
-  };
+  const handleViewDetail = useCallback((incident: Incident) => {
+    setSelectedIncident(incident);
+    setShowDetailModal(true);
+  }, []);
 
   const stats = {
     total: incidents.length,
@@ -258,41 +311,11 @@ export default function IncidentsPage() {
               </TableHeader>
               <TableBody>
                 {incidents.map((incident) => (
-                  <TableRow key={incident.id}>
-                    <TableCell>
-                      <div className="max-w-xs">
-                        <div className="font-medium truncate">{incident.title}</div>
-                        <div className="text-xs text-gray-500 truncate">{incident.description}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getIncidentTypeLabel(incident.incident_type)}</TableCell>
-                    <TableCell>
-                      {incident.delivery ? (
-                        <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                          {incident.delivery.tracking_code}
-                        </code>
-                      ) : (
-                        '-'
-                      )}
-                    </TableCell>
-                    <TableCell>{getSeverityBadge(incident.severity)}</TableCell>
-                    <TableCell>{getStatusBadge(incident.status)}</TableCell>
-                    <TableCell>
-                      {format(new Date(incident.created_at), 'dd/MM/yy HH:mm', { locale: fr })}
-                    </TableCell>
-                    <TableCell>
-                      <button
-                        onClick={() => {
-                          setSelectedIncident(incident);
-                          setShowDetailModal(true);
-                        }}
-                        className="p-1.5 text-gray-400 hover:text-primary-500 hover:bg-gray-100 rounded-lg"
-                        title="Voir détails"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </TableCell>
-                  </TableRow>
+                  <IncidentRow
+                    key={incident.id}
+                    incident={incident}
+                    onViewDetail={handleViewDetail}
+                  />
                 ))}
               </TableBody>
             </Table>

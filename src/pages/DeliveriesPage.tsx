@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, memo } from 'react';
 import { Search, Eye, MapPin, Package, Clock, CheckCircle, Truck, AlertCircle, Download, RotateCcw } from 'lucide-react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { formatCurrency } from '../utils/format';
@@ -26,6 +26,88 @@ const ADMIN_STATUS_TRANSITIONS: Record<string, { value: string; label: string }[
   delivered: [{ value: 'completed', label: 'Terminée' }],
   returned: [{ value: 'completed', label: 'Terminée' }],
 };
+
+// --- Helpers (pure functions, no component state dependency) ---
+
+const getStatusBadge = (status: string) => {
+  const statusConfig: Record<string, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info'; label: string }> = {
+    pending: { variant: 'warning', label: 'En attente' },
+    searching: { variant: 'warning', label: 'Recherche livreur' },
+    assigned: { variant: 'info', label: 'Assignée' },
+    accepted: { variant: 'info', label: 'Acceptée' },
+    picking_up: { variant: 'info', label: 'En route pickup' },
+    picked_up: { variant: 'info', label: 'Récupérée' },
+    in_transit: { variant: 'info', label: 'En transit' },
+    arriving: { variant: 'info', label: 'Arrivée' },
+    delivered: { variant: 'success', label: 'Livrée' },
+    completed: { variant: 'success', label: 'Terminée' },
+    cancelled: { variant: 'danger', label: 'Annulée' },
+    failed: { variant: 'danger', label: 'Échouée' },
+    returned: { variant: 'warning', label: 'Retournée' },
+  };
+  const config = statusConfig[status] || { variant: 'default', label: status };
+  return <Badge variant={config.variant}>{config.label}</Badge>;
+};
+
+// --- Memoized row component ---
+
+interface DeliveryRowProps {
+  delivery: Delivery;
+  onViewDetail: (id: string) => void;
+}
+
+const DeliveryRow = memo(function DeliveryRow({ delivery, onViewDetail }: DeliveryRowProps) {
+  return (
+    <TableRow>
+      <TableCell>
+        <code className="text-sm bg-gray-100 px-2 py-1 rounded">
+          {delivery.tracking_code}
+        </code>
+      </TableCell>
+      <TableCell>
+        {delivery.business_client?.company_name || '-'}
+      </TableCell>
+      <TableCell>
+        <div className="max-w-xs">
+          <div className="flex items-start text-sm">
+            <MapPin className="w-3 h-3 text-green-500 mr-1 mt-0.5 flex-shrink-0" />
+            <span className="truncate">{delivery.pickup_address}</span>
+          </div>
+          <div className="flex items-start text-sm mt-1">
+            <MapPin className="w-3 h-3 text-red-500 mr-1 mt-0.5 flex-shrink-0" />
+            <span className="truncate">{delivery.delivery_address}</span>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        {delivery.driver ? (
+          <div>
+            <div className="font-medium">{delivery.driver.full_name}</div>
+            <div className="text-xs text-gray-500">{delivery.driver.phone}</div>
+          </div>
+        ) : (
+          <span className="text-gray-400">Non assigné</span>
+        )}
+      </TableCell>
+      <TableCell>{formatCurrency(delivery.total_price || 0)}</TableCell>
+      <TableCell>{getStatusBadge(delivery.status)}</TableCell>
+      <TableCell>
+        {format(new Date(delivery.created_at), 'dd/MM/yy HH:mm', { locale: fr })}
+      </TableCell>
+      <TableCell>
+        <button
+          onClick={() => onViewDetail(delivery.id)}
+          className="p-1.5 text-gray-400 hover:text-primary-500 hover:bg-gray-100 rounded-lg"
+          title="Voir détails"
+        >
+          <Eye className="w-4 h-4" />
+        </button>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+// --- Main page component ---
 
 export default function DeliveriesPage() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -85,7 +167,7 @@ export default function DeliveriesPage() {
     }
   };
 
-  const handleViewDetail = async (id: string) => {
+  const handleViewDetail = useCallback(async (id: string) => {
     const delivery = await getDelivery(id);
     if (delivery) {
       setSelectedDelivery(delivery);
@@ -97,7 +179,7 @@ export default function DeliveriesPage() {
       setStatusHistory(history);
       setHistoryLoading(false);
     }
-  };
+  }, []);
 
   const activeFilterCount = [searchQuery, statusFilter].filter(Boolean).length;
   const hasActiveFilters = activeFilterCount > 0;
@@ -134,27 +216,6 @@ export default function DeliveriesPage() {
     link.click();
     URL.revokeObjectURL(url);
   };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info'; label: string }> = {
-      pending: { variant: 'warning', label: 'En attente' },
-      searching: { variant: 'warning', label: 'Recherche livreur' },
-      assigned: { variant: 'info', label: 'Assignée' },
-      accepted: { variant: 'info', label: 'Acceptée' },
-      picking_up: { variant: 'info', label: 'En route pickup' },
-      picked_up: { variant: 'info', label: 'Récupérée' },
-      in_transit: { variant: 'info', label: 'En transit' },
-      arriving: { variant: 'info', label: 'Arrivée' },
-      delivered: { variant: 'success', label: 'Livrée' },
-      completed: { variant: 'success', label: 'Terminée' },
-      cancelled: { variant: 'danger', label: 'Annulée' },
-      failed: { variant: 'danger', label: 'Échouée' },
-      returned: { variant: 'warning', label: 'Retournée' },
-    };
-    const config = statusConfig[status] || { variant: 'default', label: status };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
-
 
   const getTimelineColor = (status: string): { dot: string; line: string; bg: string; text: string } => {
     const completedStatuses = ['delivered', 'completed'];
@@ -359,52 +420,11 @@ export default function DeliveriesPage() {
               </TableHeader>
               <TableBody>
                 {filteredDeliveries.map((delivery) => (
-                  <TableRow key={delivery.id}>
-                    <TableCell>
-                      <code className="text-sm bg-gray-100 px-2 py-1 rounded">
-                        {delivery.tracking_code}
-                      </code>
-                    </TableCell>
-                    <TableCell>
-                      {delivery.business_client?.company_name || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-xs">
-                        <div className="flex items-start text-sm">
-                          <MapPin className="w-3 h-3 text-green-500 mr-1 mt-0.5 flex-shrink-0" />
-                          <span className="truncate">{delivery.pickup_address}</span>
-                        </div>
-                        <div className="flex items-start text-sm mt-1">
-                          <MapPin className="w-3 h-3 text-red-500 mr-1 mt-0.5 flex-shrink-0" />
-                          <span className="truncate">{delivery.delivery_address}</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {delivery.driver ? (
-                        <div>
-                          <div className="font-medium">{delivery.driver.full_name}</div>
-                          <div className="text-xs text-gray-500">{delivery.driver.phone}</div>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">Non assigné</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{formatCurrency(delivery.total_price || 0)}</TableCell>
-                    <TableCell>{getStatusBadge(delivery.status)}</TableCell>
-                    <TableCell>
-                      {format(new Date(delivery.created_at), 'dd/MM/yy HH:mm', { locale: fr })}
-                    </TableCell>
-                    <TableCell>
-                      <button
-                        onClick={() => handleViewDetail(delivery.id)}
-                        className="p-1.5 text-gray-400 hover:text-primary-500 hover:bg-gray-100 rounded-lg"
-                        title="Voir détails"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </TableCell>
-                  </TableRow>
+                  <DeliveryRow
+                    key={delivery.id}
+                    delivery={delivery}
+                    onViewDetail={handleViewDetail}
+                  />
                 ))}
               </TableBody>
             </Table>

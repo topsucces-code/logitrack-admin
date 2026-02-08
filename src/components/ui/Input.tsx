@@ -1,4 +1,4 @@
-import { type InputHTMLAttributes, forwardRef } from 'react';
+import { type InputHTMLAttributes, forwardRef, useId } from 'react';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -7,16 +7,30 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helperText, className = '', ...props }, ref) => {
+  ({ label, error, helperText, className = '', id: externalId, ...props }, ref) => {
+    const generatedId = useId();
+    const id = externalId || generatedId;
+    const errorId = `${id}-error`;
+    const helperTextId = `${id}-helper`;
+
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label
+            htmlFor={id}
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+          >
             {label}
           </label>
         )}
         <input
           ref={ref}
+          id={id}
+          aria-required={props.required || undefined}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={
+            error ? errorId : helperText ? helperTextId : undefined
+          }
           className={`
             w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500
             bg-white dark:bg-gray-700
@@ -27,8 +41,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           `}
           {...props}
         />
-        {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
-        {helperText && !error && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{helperText}</p>}
+        {error && <p id={errorId} className="mt-1 text-xs text-red-500" role="alert">{error}</p>}
+        {helperText && !error && <p id={helperTextId} className="mt-1 text-sm text-gray-500 dark:text-gray-400">{helperText}</p>}
       </div>
     );
   }
