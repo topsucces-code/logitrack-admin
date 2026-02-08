@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { Plus, Search, Key, Ban, CheckCircle, AlertCircle, Loader2, RotateCcw, X } from 'lucide-react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useFormAutosave } from '../hooks/useFormAutosave';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { useToast } from '../contexts/ToastContext';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
@@ -58,6 +59,18 @@ export default function ClientsPage() {
 
   const { hasDraft, restoreDraft, clearDraft, draftSavedAt, justSaved } = useFormAutosave('client', formData, showCreateModal);
   const [showDraftBanner, setShowDraftBanner] = useState(false);
+
+  // Track initial form data to compute isDirty
+  const initialFormDataRef = useRef(formData);
+  useEffect(() => {
+    if (showCreateModal) {
+      initialFormDataRef.current = formData;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCreateModal]);
+
+  const isDirty = showCreateModal && JSON.stringify(formData) !== JSON.stringify(initialFormDataRef.current);
+  useUnsavedChanges(isDirty);
 
   useEffect(() => {
     if (showCreateModal && hasDraft) {

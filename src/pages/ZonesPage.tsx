@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Plus, Search, Edit2, MapPin, AlertCircle, RotateCcw, X } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { useFormAutosave } from '../hooks/useFormAutosave';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
@@ -37,6 +38,18 @@ export default function ZonesPage() {
   const isModalOpen = showCreateModal || !!editingZone;
   const { hasDraft, restoreDraft, clearDraft, draftSavedAt, justSaved } = useFormAutosave('zone', formData, isModalOpen);
   const [showDraftBanner, setShowDraftBanner] = useState(false);
+
+  // Track initial form data to compute isDirty
+  const initialFormDataRef = useRef(formData);
+  useEffect(() => {
+    if (isModalOpen) {
+      initialFormDataRef.current = formData;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isModalOpen]);
+
+  const isDirty = isModalOpen && JSON.stringify(formData) !== JSON.stringify(initialFormDataRef.current);
+  useUnsavedChanges(isDirty);
 
   // Show draft banner when modal opens and draft exists (only for create, not edit)
   useEffect(() => {
