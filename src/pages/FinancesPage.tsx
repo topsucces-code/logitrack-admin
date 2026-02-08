@@ -35,7 +35,7 @@ export default function FinancesPage() {
         getPendingPayments(),
       ]);
       setStats(statsData);
-      setRecentDeliveries(deliveriesData);
+      setRecentDeliveries(deliveriesData.data);
       setRevenueData(revenue);
       setDistributionData(distribution);
       setPendingPayments(pending);

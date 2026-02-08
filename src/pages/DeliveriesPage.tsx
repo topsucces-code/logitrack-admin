@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, Eye, MapPin, Package, Clock, CheckCircle, Truck, AlertCircle } from 'lucide-react';
+import { Search, Eye, MapPin, Package, Clock, CheckCircle, Truck, AlertCircle, Download } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
@@ -37,20 +37,29 @@ export default function DeliveriesPage() {
   const [updating, setUpdating] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 20;
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
 
   useEffect(() => {
     loadDeliveries();
-  }, [statusFilter]);
+  }, [statusFilter, page]);
 
   const loadDeliveries = async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await getDeliveries({
+      const { data, total } = await getDeliveries({
         status: statusFilter || undefined,
-        limit: 100,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
       });
       setDeliveries(data);
+      setTotalCount(total);
     } catch (error) {
       adminLogger.error('Error loading deliveries', { error });
       setLoadError('Erreur lors du chargement des livraisons');
@@ -75,6 +84,27 @@ export default function DeliveriesPage() {
       delivery.pickup_address.toLowerCase().includes(searchQuery.toLowerCase()) ||
       delivery.delivery_address.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleExportCSV = () => {
+    const headers = ['Code', 'Client', 'Pickup', 'Destination', 'Montant', 'Statut', 'Date'];
+    const rows = filteredDeliveries.map(d => [
+      d.tracking_code || '',
+      d.business_client?.company_name || d.company?.company_name || '-',
+      (d.pickup_address || '').replace(/,/g, ' '),
+      (d.delivery_address || '').replace(/,/g, ' '),
+      d.total_price || 0,
+      d.status,
+      new Date(d.created_at).toLocaleDateString('fr-FR'),
+    ]);
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `livraisons-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info'; label: string }> = {
@@ -142,6 +172,14 @@ export default function DeliveriesPage() {
             <option value="delivered">Livrée</option>
             <option value="cancelled">Annulée</option>
           </select>
+          <button
+            onClick={handleExportCSV}
+            disabled={filteredDeliveries.length === 0}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
         </div>
 
         {/* Stats */}
@@ -275,6 +313,32 @@ export default function DeliveriesPage() {
               </TableBody>
             </Table>
           )}
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between px-4 py-3 border-t">
+            <p className="text-sm text-gray-500">
+              {totalCount} livraison{totalCount > 1 ? 's' : ''} au total
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                Précédent
+              </button>
+              <span className="text-sm text-gray-700">
+                Page {page} / {Math.ceil(totalCount / pageSize) || 1}
+              </span>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={page >= Math.ceil(totalCount / pageSize)}
+                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                Suivant
+              </button>
+            </div>
+          </div>
         </Card>
       </div>
 

@@ -374,7 +374,10 @@ export async function getDeliveries(options?: {
   status?: string;
   limit?: number;
   offset?: number;
-}): Promise<Delivery[]> {
+}): Promise<{ data: Delivery[]; total: number }> {
+  const limit = options?.limit ?? 20;
+  const offset = options?.offset ?? 0;
+
   let query = supabase
     .from('logitrack_deliveries')
     .select(`
@@ -382,8 +385,9 @@ export async function getDeliveries(options?: {
       business_client:business_client_id(company_name),
       company:company_id(company_name),
       driver:driver_id(full_name, phone)
-    `)
-    .order('created_at', { ascending: false });
+    `, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (options?.clientId) query = query.eq('business_client_id', options.clientId);
   if (options?.companyId) query = query.eq('company_id', options.companyId);
@@ -392,19 +396,18 @@ export async function getDeliveries(options?: {
     const statuses = options.status.split(',');
     query = statuses.length > 1 ? query.in('status', statuses) : query.eq('status', options.status);
   }
-  if (options?.limit) query = query.limit(options.limit);
-  if (options?.offset) query = query.range(options.offset, options.offset + (options.limit || 50) - 1);
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) {
     adminLogger.error('Error fetching deliveries', { error });
-    return [];
+    return { data: [], total: 0 };
   }
 
-  return (data || []).map(d => ({
+  const deliveries = (data || []).map(d => ({
     ...d,
     delivery_fee: d.total_price || 0,
   }));
+  return { data: deliveries, total: count ?? 0 };
 }
 
 export async function getDelivery(id: string): Promise<Delivery | null> {
