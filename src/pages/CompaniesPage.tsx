@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Building2, Users, Package, CheckCircle, Ban, Eye, AlertCircle } from 'lucide-react';
+import { Plus, Search, Building2, Users, Package, CheckCircle, Ban, Eye, AlertCircle, Minus, Activity } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
@@ -31,6 +31,8 @@ export default function CompaniesPage() {
   const [selectedCompany, setSelectedCompany] = useState<DeliveryCompany | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [defaultCommission, setDefaultCommission] = useState(15);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkActioning, setBulkActioning] = useState(false);
   const [formData, setFormData] = useState({
     company_name: '',
     legal_name: '',
@@ -132,6 +134,78 @@ export default function CompaniesPage() {
     }
   };
 
+  const getHealthBadge = (company: DeliveryCompany) => {
+    const total = company.total_deliveries || 0;
+    const completed = company.completed_deliveries || 0;
+    if (total === 0) {
+      return <span className="text-xs text-gray-400 font-medium">N/A</span>;
+    }
+    const rate = Math.round((completed / total) * 100);
+    let colorClass = 'text-red-600 bg-red-50';
+    if (rate > 90) colorClass = 'text-green-600 bg-green-50';
+    else if (rate >= 70) colorClass = 'text-yellow-600 bg-yellow-50';
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
+        <Activity className="w-3 h-3" />
+        {rate}%
+      </span>
+    );
+  };
+
+  // Bulk selection
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredCompanies.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredCompanies.map((c) => c.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkSuspend = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkActioning(true);
+    let successCount = 0;
+    let errorCount = 0;
+    for (const id of selectedIds) {
+      const result = await suspendDeliveryCompany(id);
+      if (result.success) successCount++;
+      else errorCount++;
+    }
+    setBulkActioning(false);
+    setSelectedIds(new Set());
+    if (successCount > 0) showSuccess(`${successCount} entreprise(s) suspendue(s)`);
+    if (errorCount > 0) showError(`${errorCount} erreur(s) lors de la suspension`);
+    loadCompanies();
+  };
+
+  const handleBulkActivate = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkActioning(true);
+    let successCount = 0;
+    let errorCount = 0;
+    for (const id of selectedIds) {
+      const result = await activateDeliveryCompany(id);
+      if (result.success) successCount++;
+      else errorCount++;
+    }
+    setBulkActioning(false);
+    setSelectedIds(new Set());
+    if (successCount > 0) showSuccess(`${successCount} entreprise(s) activée(s)`);
+    if (errorCount > 0) showError(`${errorCount} erreur(s) lors de l'activation`);
+    loadCompanies();
+  };
+
+  const isAllSelected = filteredCompanies.length > 0 && selectedIds.size === filteredCompanies.length;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < filteredCompanies.length;
 
   return (
     <div className="min-h-screen">
@@ -232,6 +306,39 @@ export default function CompaniesPage() {
           </Card>
         </div>
 
+        {/* Bulk Actions Bar */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-lg px-4 py-3 mb-4">
+            <span className="text-sm font-medium text-primary-700">
+              {selectedIds.size} entreprise(s) sélectionnée(s)
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBulkActivate}
+                disabled={bulkActioning}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded-lg disabled:opacity-50 transition-colors"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Activer
+              </button>
+              <button
+                onClick={handleBulkSuspend}
+                disabled={bulkActioning}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg disabled:opacity-50 transition-colors"
+              >
+                <Ban className="w-4 h-4" />
+                Suspendre
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
         <Card padding="none">
           {loading ? (
@@ -242,10 +349,24 @@ export default function CompaniesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <button
+                      onClick={toggleSelectAll}
+                      className="w-5 h-5 rounded border-2 border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors"
+                      style={{
+                        backgroundColor: isAllSelected ? '#ed7410' : isSomeSelected ? '#ed7410' : 'transparent',
+                        borderColor: isAllSelected || isSomeSelected ? '#ed7410' : undefined,
+                      }}
+                    >
+                      {isAllSelected && <CheckCircle className="w-3 h-3 text-white" />}
+                      {isSomeSelected && <Minus className="w-3 h-3 text-white" />}
+                    </button>
+                  </TableHead>
                   <TableHead>Entreprise</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Livreurs</TableHead>
                   <TableHead>Livraisons</TableHead>
+                  <TableHead>Santé</TableHead>
                   <TableHead>Commission</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead>Actions</TableHead>
@@ -253,7 +374,19 @@ export default function CompaniesPage() {
               </TableHeader>
               <TableBody>
                 {filteredCompanies.map((company) => (
-                  <TableRow key={company.id}>
+                  <TableRow key={company.id} className={selectedIds.has(company.id) ? 'bg-primary-50/50' : ''}>
+                    <TableCell>
+                      <button
+                        onClick={() => toggleSelect(company.id)}
+                        className="w-5 h-5 rounded border-2 border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors"
+                        style={{
+                          backgroundColor: selectedIds.has(company.id) ? '#ed7410' : 'transparent',
+                          borderColor: selectedIds.has(company.id) ? '#ed7410' : undefined,
+                        }}
+                      >
+                        {selectedIds.has(company.id) && <CheckCircle className="w-3 h-3 text-white" />}
+                      </button>
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
@@ -276,6 +409,7 @@ export default function CompaniesPage() {
                       </span>
                     </TableCell>
                     <TableCell>{company.total_deliveries || 0}</TableCell>
+                    <TableCell>{getHealthBadge(company)}</TableCell>
                     <TableCell>{company.commission_rate}%</TableCell>
                     <TableCell>{getStatusBadge(company.status)}</TableCell>
                     <TableCell>
