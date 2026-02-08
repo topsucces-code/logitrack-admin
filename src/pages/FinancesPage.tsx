@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, AlertCircle, Calendar } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, AlertCircle, Calendar, Download } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -114,6 +114,59 @@ export default function FinancesPage() {
     }
   };
 
+  const exportFinancesCSV = () => {
+    const lines: string[] = [];
+
+    // Section 1: Résumé
+    lines.push('=== Résumé ===');
+    lines.push('Indicateur,Valeur');
+    lines.push(`Revenus totaux,${stats?.totalRevenue || 0}`);
+    lines.push(`Revenus du jour,${stats?.todayRevenue || 0}`);
+    lines.push(`Commission plateforme,${stats?.platformCommission || 0}`);
+    lines.push(`Paiements en attente,${pendingPayments.total}`);
+    lines.push(`Nombre de demandes en attente,${pendingPayments.count}`);
+    lines.push('');
+
+    // Section 2: Revenus par jour
+    lines.push('=== Revenus par jour ===');
+    lines.push('Date,Revenus,Commission');
+    revenueData.forEach((r) => {
+      lines.push(`${r.date},${r.revenue},${r.commission}`);
+    });
+    lines.push('');
+
+    // Section 3: Distribution
+    lines.push('=== Distribution des revenus ===');
+    lines.push('Catégorie,Pourcentage');
+    distributionData.forEach((d) => {
+      lines.push(`${d.name},${d.value}%`);
+    });
+    lines.push('');
+
+    // Section 4: Dernières livraisons
+    lines.push('=== Dernières livraisons payées ===');
+    lines.push('Code,Client,Montant,Livreur,Commission,Date');
+    recentDeliveries.forEach((d) => {
+      lines.push([
+        d.tracking_code,
+        d.business_client?.company_name || '-',
+        d.total_price || 0,
+        d.driver_earnings || 0,
+        d.platform_fee || 0,
+        new Date(d.created_at).toLocaleDateString('fr-FR'),
+      ].join(','));
+    });
+
+    const csv = lines.join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `finances_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen">
@@ -142,6 +195,17 @@ export default function FinancesPage() {
       <Header title="Finances" subtitle="Aperçu financier de la plateforme" />
 
       <div className="p-6 space-y-6">
+        {/* Toolbar */}
+        <div className="flex items-center justify-end">
+          <button
+            onClick={exportFinancesCSV}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            Exporter CSV
+          </button>
+        </div>
         {loadError && (
           <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             <AlertCircle className="w-5 h-5 flex-shrink-0" />

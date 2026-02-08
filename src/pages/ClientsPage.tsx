@@ -90,6 +90,8 @@ export default function ClientsPage() {
     return `il y a ${diffH} heures`;
   };
 
+  const isSearching = searchQuery !== debouncedSearch;
+
   useKeyboardShortcuts({
     onSearch: useCallback(() => searchInputRef.current?.focus(), []),
     onEscape: useCallback(() => {
@@ -223,8 +225,11 @@ export default function ClientsPage() {
               placeholder="Rechercher un client..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full pl-10 pr-9 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
+            {isSearching && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
+            )}
           </div>
           <Button onClick={() => setShowCreateModal(true)}>
             <Plus className="w-4 h-4 mr-2" />
@@ -232,8 +237,16 @@ export default function ClientsPage() {
           </Button>
         </div>
 
+        {/* Result count */}
+        {debouncedSearch && !loading && (
+          <p className="text-xs text-gray-500 mb-2">
+            {totalCount} client{totalCount > 1 ? 's' : ''} trouvé{totalCount > 1 ? 's' : ''}
+          </p>
+        )}
+
         {/* Table */}
         <Card padding="none">
+          <div className={`transition-opacity duration-200 ${isSearching ? 'opacity-60' : 'opacity-100'}`}>
           {loading ? (
             <div className="p-8 text-center">
               <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />
@@ -325,6 +338,7 @@ export default function ClientsPage() {
                 Suivant
               </button>
             </div>
+          </div>
           </div>
         </Card>
       </div>
