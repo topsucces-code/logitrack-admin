@@ -5,7 +5,9 @@ import { fr } from 'date-fns/locale';
 import Header from '../components/layout/Header';
 import Badge from '../components/ui/Badge';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { supabase } from '../lib/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   getConversations,
   getMessages,
@@ -15,6 +17,9 @@ import {
   reopenConversation,
   subscribeToConversations,
   subscribeToMessages,
+  subscribeToTyping,
+  sendTypingIndicator,
+  subscribeToAllNewMessages,
   getConversationStats,
   type ChatConversation,
   type ChatMessage,
@@ -35,6 +40,7 @@ const statusVariants: Record<string, 'warning' | 'success' | 'default'> = {
 
 export default function SupportChatPage() {
   const { user, adminUser } = useAuth();
+  const { showInfo } = useToast();
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -44,8 +50,19 @@ export default function SupportChatPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [stats, setStats] = useState<ConversationStats>({ total: 0, waiting: 0, active: 0, resolved: 0 });
+  const [isOtherTyping, setIsOtherTyping] = useState(false);
+  const [typingName, setTypingName] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingSentRef = useRef<number>(0);
+  const selectedIdRef = useRef<string | null>(null);
+  const typingChannelRef = useRef<RealtimeChannel | null>(null);
+
+  // Keep selectedIdRef in sync for use in callbacks
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   const selectedConversation = conversations.find(c => c.id === selectedId);
 
@@ -127,10 +144,57 @@ export default function SupportChatPage() {
     };
   }, [selectedId, user]);
 
+  // Subscribe to typing indicator for selected conversation
+  useEffect(() => {
+    if (!selectedId) {
+      setIsOtherTyping(false);
+      typingChannelRef.current = null;
+      return;
+    }
+
+    const channel = subscribeToTyping(selectedId, (senderType, senderName) => {
+      // Only show typing indicator from the other party (driver)
+      if (senderType === 'driver') {
+        setIsOtherTyping(true);
+        setTypingName(senderName);
+
+        // Auto-clear after 3 seconds of no typing event
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => {
+          setIsOtherTyping(false);
+        }, 3000);
+      }
+    });
+
+    typingChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      typingChannelRef.current = null;
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      setIsOtherTyping(false);
+    };
+  }, [selectedId]);
+
+  // Subscribe to all new messages for toast notifications
+  useEffect(() => {
+    const channel = subscribeToAllNewMessages((newMsg) => {
+      // Only notify for driver messages in non-selected conversations
+      if (newMsg.sender_type === 'driver' && newMsg.conversation_id !== selectedIdRef.current) {
+        const driverName = newMsg.sender_name || 'Livreur';
+        showInfo(`Nouveau message de ${driverName}`);
+      }
+    });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [showInfo]);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isOtherTyping]);
 
   // Send message
   async function handleSend() {
@@ -155,6 +219,18 @@ export default function SupportChatPage() {
     textareaRef.current?.focus();
   }
 
+  // Handle typing indicator broadcast (debounced: max every 2 seconds)
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setNewMessage(e.target.value);
+
+    if (!typingChannelRef.current || !adminUser) return;
+    const now = Date.now();
+    if (now - lastTypingSentRef.current > 2000) {
+      lastTypingSentRef.current = now;
+      sendTypingIndicator(typingChannelRef.current, 'support', adminUser.full_name);
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -176,6 +252,16 @@ export default function SupportChatPage() {
 
   function selectConversation(id: string) {
     setSelectedId(id);
+
+    // Immediately reset unread count in local state
+    setConversations(prev =>
+      prev.map(c => c.id === id ? { ...c, unread_count: 0 } : c)
+    );
+
+    // Mark as read on server
+    if (user) {
+      markConversationRead(id, user.id);
+    }
   }
 
   const tabs = [
@@ -349,6 +435,24 @@ export default function SupportChatPage() {
                     <MessageBubble key={msg.id} message={msg} />
                   ))
                 )}
+                {/* Typing indicator */}
+                {isOtherTyping && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[70%]">
+                      <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-white border border-gray-200">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-gray-500">{typingName}</span>
+                          <span className="flex gap-0.5">
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1">En train d'écrire...</p>
+                    </div>
+                  </div>
+                )}
                 <div ref={messagesEndRef} />
               </div>
 
@@ -359,7 +463,7 @@ export default function SupportChatPage() {
                     <textarea
                       ref={textareaRef}
                       value={newMessage}
-                      onChange={e => setNewMessage(e.target.value)}
+                      onChange={handleInputChange}
                       onKeyDown={handleKeyDown}
                       placeholder="Tapez votre message..."
                       rows={1}

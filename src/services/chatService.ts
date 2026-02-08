@@ -239,3 +239,70 @@ export function subscribeToMessages(
 
   return channel;
 }
+
+// ========================================
+// Typing Indicator (Realtime Broadcast)
+// ========================================
+
+/**
+ * Subscribe to typing events for a conversation and get back a channel
+ * that can also be used to send typing events (same broadcast channel).
+ */
+export function subscribeToTyping(
+  conversationId: string,
+  onTyping: (senderType: string, senderName: string) => void
+): RealtimeChannel {
+  const channel = supabase
+    .channel(`typing_${conversationId}`)
+    .on('broadcast', { event: 'typing' }, (payload) => {
+      const { sender_type, sender_name } = payload.payload as {
+        sender_type: string;
+        sender_name: string;
+      };
+      onTyping(sender_type, sender_name);
+    })
+    .subscribe();
+
+  return channel;
+}
+
+/**
+ * Send a typing indicator on an already-subscribed typing channel.
+ * The channel must be the one returned by subscribeToTyping.
+ */
+export function sendTypingIndicator(
+  channel: RealtimeChannel,
+  senderType: 'support' | 'driver',
+  senderName: string
+): void {
+  channel.send({
+    type: 'broadcast',
+    event: 'typing',
+    payload: { sender_type: senderType, sender_name: senderName },
+  });
+}
+
+// ========================================
+// Global New Message Subscription
+// ========================================
+
+export function subscribeToAllNewMessages(
+  onMessage: (message: ChatMessage) => void
+): RealtimeChannel {
+  const channel = supabase
+    .channel('admin_all_chat_messages')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'logitrack_chat_messages',
+      },
+      (payload) => {
+        onMessage(payload.new as ChatMessage);
+      }
+    )
+    .subscribe();
+
+  return channel;
+}
