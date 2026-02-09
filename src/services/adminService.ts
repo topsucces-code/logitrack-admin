@@ -89,6 +89,33 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 // ========================================
+// Active Deliveries (real-time)
+// ========================================
+
+export async function getActiveDeliveries(): Promise<{
+  count: number;
+  inTransit: number;
+  arriving: number;
+}> {
+  const { data, error } = await supabase
+    .from('logitrack_deliveries')
+    .select('id, status')
+    .in('status', ['in_transit', 'arriving']);
+
+  if (error) {
+    adminLogger.error('Error fetching active deliveries', { error });
+    return { count: 0, inTransit: 0, arriving: 0 };
+  }
+
+  const rows = data || [];
+  return {
+    count: rows.length,
+    inTransit: rows.filter(d => d.status === 'in_transit').length,
+    arriving: rows.filter(d => d.status === 'arriving').length,
+  };
+}
+
+// ========================================
 // Business Clients
 // ========================================
 
@@ -574,6 +601,102 @@ export async function updateIncidentStatus(
     .eq('id', id);
 
   if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+// ========================================
+// Driver Assignment
+// ========================================
+
+export interface AvailableDriver {
+  driver_id: string;
+  driver_name: string;
+  phone: string;
+  distance_km: number;
+  rating: number;
+  acceptance_rate: number;
+  score: number;
+}
+
+export async function getAvailableDriversForDelivery(deliveryId: string): Promise<AvailableDriver[]> {
+  // Get delivery to obtain pickup coordinates and zone
+  const { data: delivery, error: deliveryError } = await supabase
+    .from('logitrack_deliveries')
+    .select('pickup_latitude, pickup_longitude, pickup_zone_id')
+    .eq('id', deliveryId)
+    .single();
+
+  if (deliveryError || !delivery) {
+    adminLogger.error('Error fetching delivery for driver assignment', { deliveryError });
+    return [];
+  }
+
+  if (!delivery.pickup_latitude || !delivery.pickup_longitude) {
+    adminLogger.error('Delivery missing pickup coordinates', { deliveryId });
+    return [];
+  }
+
+  const { data, error } = await supabase.rpc('find_available_drivers', {
+    p_pickup_lat: delivery.pickup_latitude,
+    p_pickup_lon: delivery.pickup_longitude,
+    p_zone_id: delivery.pickup_zone_id || null,
+    p_limit: 10,
+  });
+
+  if (error) {
+    adminLogger.error('Error finding available drivers', { error });
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function assignDriverToDelivery(
+  deliveryId: string,
+  driverId: string
+): Promise<{ success: boolean; error?: string }> {
+  // Update delivery: set driver_id, status, assigned_at
+  const { error: deliveryError } = await supabase
+    .from('logitrack_deliveries')
+    .update({
+      driver_id: driverId,
+      status: 'assigned',
+      assigned_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', deliveryId);
+
+  if (deliveryError) return { success: false, error: deliveryError.message };
+
+  // Set driver as unavailable
+  await supabase
+    .from('logitrack_drivers')
+    .update({ is_available: false, updated_at: new Date().toISOString() })
+    .eq('id', driverId);
+
+  // Get delivery info for the notification
+  const { data: delivery } = await supabase
+    .from('logitrack_deliveries')
+    .select('tracking_code, pickup_address, delivery_address')
+    .eq('id', deliveryId)
+    .single();
+
+  // Notify the driver
+  await supabase.from('logitrack_notifications').insert({
+    recipient_type: 'driver',
+    recipient_id: driverId,
+    delivery_id: deliveryId,
+    channel: 'in_app',
+    template: 'delivery_assigned',
+    title: 'Nouvelle livraison assignée',
+    body: delivery
+      ? `Course ${delivery.tracking_code}: ${delivery.pickup_address} → ${delivery.delivery_address}`
+      : 'Une nouvelle course vous a été assignée.',
+    data: { type: 'delivery_assigned', delivery_id: deliveryId },
+    status: 'sent',
+    sent_at: new Date().toISOString(),
+  });
+
   return { success: true };
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, memo } from 'react';
-import { Search, Eye, MapPin, Package, Clock, CheckCircle, Truck, AlertCircle, Download, RotateCcw } from 'lucide-react';
+import { Search, Eye, MapPin, Package, Clock, CheckCircle, Truck, AlertCircle, Download, RotateCcw, UserPlus, Phone, Star, Navigation, Loader2 } from 'lucide-react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { formatCurrency } from '../utils/format';
 import { adminLogger } from '../utils/logger';
@@ -9,7 +9,15 @@ import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
-import { getDeliveries, getDelivery, updateDeliveryStatus, getDeliveryStatusHistory } from '../services/adminService';
+import {
+  getDeliveries,
+  getDelivery,
+  updateDeliveryStatus,
+  getDeliveryStatusHistory,
+  getAvailableDriversForDelivery,
+  assignDriverToDelivery,
+} from '../services/adminService';
+import type { AvailableDriver } from '../services/adminService';
 import type { Delivery, StatusHistoryEntry } from '../types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -122,6 +130,10 @@ export default function DeliveriesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [statusHistory, setStatusHistory] = useState<StatusHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [showDriverPicker, setShowDriverPicker] = useState(false);
+  const [availableDrivers, setAvailableDrivers] = useState<AvailableDriver[]>([]);
+  const [driversLoading, setDriversLoading] = useState(false);
+  const [assigning, setAssigning] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 20;
@@ -572,12 +584,99 @@ export default function DeliveriesPage() {
                 <p className="font-medium">
                   {selectedDelivery.driver?.full_name || 'Non assigné'}
                 </p>
+                {/* Assign driver button - visible when no driver or status allows reassignment */}
+                {(['pending', 'searching', 'assigned'].includes(selectedDelivery.status) && !selectedDelivery.driver) && (
+                  <button
+                    onClick={async () => {
+                      setShowDriverPicker(true);
+                      setDriversLoading(true);
+                      const drivers = await getAvailableDriversForDelivery(selectedDelivery.id);
+                      setAvailableDrivers(drivers);
+                      setDriversLoading(false);
+                    }}
+                    className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    Assigner un livreur
+                  </button>
+                )}
               </div>
               <div>
                 <p className="text-sm text-gray-500">Description colis</p>
                 <p className="font-medium">{selectedDelivery.package_description || '-'}</p>
               </div>
             </div>
+
+            {/* Driver Picker */}
+            {showDriverPicker && (
+              <div className="border rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between bg-gray-50 px-4 py-2.5 border-b">
+                  <h4 className="font-medium text-sm">Livreurs disponibles</h4>
+                  <button
+                    onClick={() => setShowDriverPicker(false)}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Fermer
+                  </button>
+                </div>
+                {driversLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 text-primary-500 animate-spin" />
+                  </div>
+                ) : availableDrivers.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-gray-500">
+                    Aucun livreur disponible dans cette zone
+                  </div>
+                ) : (
+                  <div className="divide-y max-h-64 overflow-y-auto">
+                    {availableDrivers.map((d) => (
+                      <div key={d.driver_id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{d.driver_name}</p>
+                          <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              {d.phone}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Navigation className="w-3 h-3" />
+                              {d.distance_km} km
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Star className="w-3 h-3 text-yellow-500" />
+                              {d.rating > 0 ? d.rating.toFixed(1) : 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          disabled={assigning}
+                          onClick={async () => {
+                            setAssigning(true);
+                            const result = await assignDriverToDelivery(selectedDelivery!.id, d.driver_id);
+                            if (result.success) {
+                              setShowDriverPicker(false);
+                              // Refresh delivery detail
+                              const updated = await getDelivery(selectedDelivery!.id);
+                              if (updated) setSelectedDelivery(updated);
+                              const history = await getDeliveryStatusHistory(selectedDelivery!.id);
+                              setStatusHistory(history);
+                              loadDeliveries();
+                            } else {
+                              setUpdateError(result.error || 'Erreur lors de l\'assignation');
+                            }
+                            setAssigning(false);
+                          }}
+                          className="ml-3 px-3 py-1.5 text-xs font-medium text-white bg-green-500 hover:bg-green-600 rounded-lg disabled:opacity-50 transition-colors flex items-center gap-1"
+                        >
+                          {assigning ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
+                          Assigner
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Pricing */}
             <div className="border-t pt-4">
