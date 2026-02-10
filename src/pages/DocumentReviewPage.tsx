@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Eye, CheckCircle, XCircle, Clock, FileText, User, AlertCircle, X, ChevronLeft, ChevronRight, Square, CheckSquare, Loader2 } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { adminLogger } from '../utils/logger';
@@ -7,6 +7,7 @@ import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
+import ImageInspector from '../components/ui/ImageInspector';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
@@ -40,7 +41,7 @@ export default function DocumentReviewPage() {
   const [showModal, setShowModal] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [inspectorIndex, setInspectorIndex] = useState<number | null>(null);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -275,6 +276,24 @@ export default function DocumentReviewPage() {
     if (doc.insurance_url) count++;
     return count;
   }
+
+  /** Build ordered image list for the inspector */
+  function getDocumentImages(doc: DriverDocument): { url: string; label: string }[] {
+    const imgs: { url: string; label: string }[] = [];
+    if (doc.id_card_front_url) imgs.push({ url: doc.id_card_front_url, label: 'CNI - Recto' });
+    if (doc.id_card_back_url) imgs.push({ url: doc.id_card_back_url, label: 'CNI - Verso' });
+    if (doc.license_front_url) imgs.push({ url: doc.license_front_url, label: 'Permis - Recto' });
+    if (doc.license_back_url) imgs.push({ url: doc.license_back_url, label: 'Permis - Verso' });
+    if (doc.vehicle_registration_url) imgs.push({ url: doc.vehicle_registration_url, label: 'Carte grise' });
+    if (doc.insurance_url) imgs.push({ url: doc.insurance_url, label: 'Assurance' });
+    if (doc.profile_photo_url) imgs.push({ url: doc.profile_photo_url, label: 'Photo de profil' });
+    return imgs;
+  }
+
+  const inspectorImages = useMemo(() => {
+    if (!selectedDoc) return [];
+    return getDocumentImages(selectedDoc);
+  }, [selectedDoc]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
 
@@ -564,7 +583,7 @@ export default function DocumentReviewPage() {
                         src={selectedDoc.id_card_front_url}
                         alt="CNI Recto"
                         className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => setPreviewImage(selectedDoc.id_card_front_url!)}
+                        onClick={() => setInspectorIndex(inspectorImages.findIndex(i => i.url === selectedDoc.id_card_front_url))}
                       />
                     </div>
                   </div>
@@ -577,7 +596,7 @@ export default function DocumentReviewPage() {
                         src={selectedDoc.id_card_back_url}
                         alt="CNI Verso"
                         className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => setPreviewImage(selectedDoc.id_card_back_url!)}
+                        onClick={() => setInspectorIndex(inspectorImages.findIndex(i => i.url === selectedDoc.id_card_back_url))}
                       />
                     </div>
                   </div>
@@ -590,7 +609,7 @@ export default function DocumentReviewPage() {
                         src={selectedDoc.license_front_url}
                         alt="Permis Recto"
                         className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => setPreviewImage(selectedDoc.license_front_url!)}
+                        onClick={() => setInspectorIndex(inspectorImages.findIndex(i => i.url === selectedDoc.license_front_url))}
                       />
                     </div>
                   </div>
@@ -603,7 +622,7 @@ export default function DocumentReviewPage() {
                         src={selectedDoc.license_back_url}
                         alt="Permis Verso"
                         className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => setPreviewImage(selectedDoc.license_back_url!)}
+                        onClick={() => setInspectorIndex(inspectorImages.findIndex(i => i.url === selectedDoc.license_back_url))}
                       />
                     </div>
                   </div>
@@ -616,7 +635,7 @@ export default function DocumentReviewPage() {
                         src={selectedDoc.vehicle_registration_url}
                         alt="Carte grise"
                         className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => setPreviewImage(selectedDoc.vehicle_registration_url!)}
+                        onClick={() => setInspectorIndex(inspectorImages.findIndex(i => i.url === selectedDoc.vehicle_registration_url))}
                       />
                     </div>
                   </div>
@@ -629,7 +648,7 @@ export default function DocumentReviewPage() {
                         src={selectedDoc.insurance_url}
                         alt="Assurance"
                         className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => setPreviewImage(selectedDoc.insurance_url!)}
+                        onClick={() => setInspectorIndex(inspectorImages.findIndex(i => i.url === selectedDoc.insurance_url))}
                       />
                     </div>
                   </div>
@@ -642,7 +661,7 @@ export default function DocumentReviewPage() {
                         src={selectedDoc.profile_photo_url}
                         alt="Photo de profil"
                         className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => setPreviewImage(selectedDoc.profile_photo_url!)}
+                        onClick={() => setInspectorIndex(inspectorImages.findIndex(i => i.url === selectedDoc.profile_photo_url))}
                       />
                     </div>
                   </div>
@@ -756,25 +775,13 @@ export default function DocumentReviewPage() {
         </div>
       </Modal>
 
-      {/* Image Lightbox */}
-      {previewImage && (
-        <div
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-          onClick={() => setPreviewImage(null)}
-        >
-          <button
-            onClick={() => setPreviewImage(null)}
-            className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
-          >
-            <X className="w-8 h-8" />
-          </button>
-          <img
-            src={previewImage}
-            alt="Document"
-            className="max-w-full max-h-full object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+      {/* Inspecteur d'images */}
+      {inspectorIndex !== null && inspectorImages.length > 0 && (
+        <ImageInspector
+          images={inspectorImages}
+          initialIndex={inspectorIndex}
+          onClose={() => setInspectorIndex(null)}
+        />
       )}
     </div>
   );

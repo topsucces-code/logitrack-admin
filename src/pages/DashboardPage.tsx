@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../utils/format';
@@ -15,13 +15,21 @@ import {
   AlertTriangle,
   AlertCircle,
   ArrowUpRight,
+  Radio,
+  MapPin,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import Header from '../components/layout/Header';
 import Card, { CardHeader } from '../components/ui/Card';
 import { SkeletonStatCard, SkeletonChartCard, SkeletonListItem } from '../components/ui/Skeleton';
-import { getDashboardStats, getDeliveryTrend, getRevenueTrend } from '../services/adminService';
+import { getDashboardStats, getDeliveryTrend, getRevenueTrend, getActiveDeliveries } from '../services/adminService';
 import type { DashboardStats } from '../types';
+
+interface ActiveDeliveriesData {
+  count: number;
+  inTransit: number;
+  arriving: number;
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -30,6 +38,12 @@ export default function DashboardPage() {
   const [revenueData, setRevenueData] = useState<{ name: string; revenue: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Active deliveries live state
+  const [activeDeliveries, setActiveDeliveries] = useState<ActiveDeliveriesData>({ count: 0, inTransit: 0, arriving: 0 });
+  const [liveLastUpdated, setLiveLastUpdated] = useState<Date | null>(null);
+  const [livePulse, setLivePulse] = useState(false);
+  const pulseTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadStats = useCallback(async () => {
     setLoadError(null);
@@ -50,12 +64,30 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const loadActiveDeliveries = useCallback(async () => {
+    try {
+      const data = await getActiveDeliveries();
+      setActiveDeliveries(data);
+      setLiveLastUpdated(new Date());
+
+      // Trigger pulse animation when there are active deliveries
+      if (data.count > 0) {
+        setLivePulse(true);
+        if (pulseTimeout.current) clearTimeout(pulseTimeout.current);
+        pulseTimeout.current = setTimeout(() => setLivePulse(false), 2000);
+      }
+    } catch (error) {
+      adminLogger.error('Error loading active deliveries', { error });
+    }
+  }, []);
+
   // Load stats on mount
   useEffect(() => {
     loadStats();
-  }, [loadStats]);
+    loadActiveDeliveries();
+  }, [loadStats, loadActiveDeliveries]);
 
-  // Real-time subscription for auto-updates
+  // Real-time subscription for auto-updates (general stats)
   useEffect(() => {
     const channel = supabase
       .channel('dashboard-realtime')
@@ -74,6 +106,53 @@ export default function DashboardPage() {
     };
   }, [loadStats]);
 
+  // Dedicated real-time subscription for live delivery status changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('live-deliveries-status')
+      .on('postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'logitrack_deliveries',
+          filter: 'status=in.in_transit,arriving,delivered,completed,cancelled,failed',
+        },
+        () => { loadActiveDeliveries(); }
+      )
+      .on('postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'logitrack_deliveries',
+        },
+        () => { loadActiveDeliveries(); }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      if (pulseTimeout.current) clearTimeout(pulseTimeout.current);
+    };
+  }, [loadActiveDeliveries]);
+
+  const formatLastUpdated = (date: Date | null): string => {
+    if (!date) return '--';
+    const now = new Date();
+    const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
+    if (diffSec < 5) return 'maintenant';
+    if (diffSec < 60) return `il y a ${diffSec}s`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `il y a ${diffMin}min`;
+    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Auto-refresh timestamp display every 10 seconds
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen">
@@ -84,6 +163,15 @@ export default function DashboardPage() {
             {Array.from({ length: 4 }).map((_, i) => (
               <SkeletonStatCard key={i} />
             ))}
+          </div>
+          {/* Live deliveries skeleton */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 animate-pulse">
+            <div className="h-5 w-40 bg-gray-200 rounded mb-3" />
+            <div className="grid grid-cols-3 gap-3">
+              <div className="h-16 bg-gray-200 rounded-lg" />
+              <div className="h-16 bg-gray-200 rounded-lg" />
+              <div className="h-16 bg-gray-200 rounded-lg" />
+            </div>
           </div>
           {/* Revenue Stats skeleton -- 3 cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -202,6 +290,76 @@ export default function DashboardPage() {
               </div>
             </div>
           </Card>
+        </div>
+
+        {/* Livraisons actives - Real-time live indicator */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Radio className="w-4 h-4 text-red-500" />
+                {activeDeliveries.count > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                )}
+              </div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Livraisons actives</h3>
+              {activeDeliveries.count > 0 && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                  EN DIRECT
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3 h-3 text-gray-400" />
+              <span className="text-xs text-gray-400">{formatLastUpdated(liveLastUpdated)}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            {/* Total actives */}
+            <button
+              onClick={() => navigate('/deliveries?status=in_transit,arriving')}
+              className="relative overflow-hidden bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-lg p-3 text-left transition-all hover:shadow-md"
+            >
+              {livePulse && activeDeliveries.count > 0 && (
+                <div className="absolute inset-0 bg-red-400/10 animate-pulse rounded-lg" />
+              )}
+              <div className="relative">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Total actives</p>
+                <p className={`text-xl font-bold mt-0.5 ${
+                  activeDeliveries.count > 0 ? 'text-red-600' : 'text-gray-400'
+                }`}>
+                  {activeDeliveries.count}
+                </p>
+              </div>
+            </button>
+
+            {/* En transit */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+              <div className="flex items-center gap-1 mb-0.5">
+                <Truck className="w-3 h-3 text-blue-500" />
+                <p className="text-xs text-gray-500 dark:text-gray-400">En transit</p>
+              </div>
+              <p className={`text-xl font-bold ${
+                activeDeliveries.inTransit > 0 ? 'text-blue-600' : 'text-gray-400'
+              }`}>
+                {activeDeliveries.inTransit}
+              </p>
+            </div>
+
+            {/* En approche */}
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
+              <div className="flex items-center gap-1 mb-0.5">
+                <MapPin className="w-3 h-3 text-amber-500" />
+                <p className="text-xs text-gray-500 dark:text-gray-400">En approche</p>
+              </div>
+              <p className={`text-xl font-bold ${
+                activeDeliveries.arriving > 0 ? 'text-amber-600' : 'text-gray-400'
+              }`}>
+                {activeDeliveries.arriving}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Revenue Stats */}
