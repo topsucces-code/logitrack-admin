@@ -975,3 +975,112 @@ export async function markAllNotificationsRead(): Promise<void> {
     .update({ is_read: true })
     .eq('is_read', false);
 }
+
+// ============================================
+// DRIVER ASSIGNMENT
+// ============================================
+
+export interface AvailableDriver {
+  driver_id: string;
+  driver_name: string;
+  phone: string;
+  vehicle_type: string;
+  photo_url: string | null;
+  distance_km: number;
+  rating: number;
+  acceptance_rate: number;
+  total_deliveries: number;
+  score: number;
+}
+
+export async function getAvailableDriversForDelivery(deliveryId: string): Promise<AvailableDriver[]> {
+  // Get delivery coordinates
+  const { data: delivery, error: delError } = await supabase
+    .from('logitrack_deliveries')
+    .select('pickup_latitude, pickup_longitude, pickup_zone_id')
+    .eq('id', deliveryId)
+    .single();
+
+  if (delError || !delivery) {
+    throw new Error('Livraison introuvable');
+  }
+
+  const lat = parseFloat(delivery.pickup_latitude);
+  const lon = parseFloat(delivery.pickup_longitude);
+
+  if (isNaN(lat) || isNaN(lon)) {
+    throw new Error('Coordonnées de ramassage manquantes');
+  }
+
+  const { data, error } = await supabase.rpc('find_available_drivers', {
+    p_pickup_lat: lat,
+    p_pickup_lon: lon,
+    p_zone_id: delivery.pickup_zone_id || null,
+    p_limit: 10,
+  });
+
+  if (error) {
+    throw new Error('Erreur recherche livreurs: ' + error.message);
+  }
+
+  return (data as AvailableDriver[]) || [];
+}
+
+export async function assignDriverToDelivery(deliveryId: string, driverId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Update delivery
+    const { error: delError } = await supabase
+      .from('logitrack_deliveries')
+      .update({
+        driver_id: driverId,
+        status: 'assigned',
+        assigned_at: new Date().toISOString(),
+      })
+      .eq('id', deliveryId);
+
+    if (delError) {
+      return { success: false, error: 'Erreur assignation: ' + delError.message };
+    }
+
+    // Mark driver as unavailable
+    await supabase
+      .from('logitrack_drivers')
+      .update({ is_available: false })
+      .eq('id', driverId);
+
+    // Get delivery info for notification
+    const { data: delivery } = await supabase
+      .from('logitrack_deliveries')
+      .select('tracking_code, pickup_address')
+      .eq('id', deliveryId)
+      .single();
+
+    // Get driver info for notification
+    const { data: driver } = await supabase
+      .from('logitrack_drivers')
+      .select('phone')
+      .eq('id', driverId)
+      .single();
+
+    // Create notification for driver
+    await supabase
+      .from('logitrack_notifications')
+      .insert({
+        recipient_type: 'driver',
+        recipient_id: driverId,
+        recipient_phone: driver?.phone || null,
+        delivery_id: deliveryId,
+        channel: 'push',
+        template: 'delivery_assigned',
+        title: 'Nouvelle livraison assignée',
+        body: `Livraison ${delivery?.tracking_code || ''} - ${delivery?.pickup_address || 'Adresse non définie'}`,
+        data: { type: 'delivery_assigned', delivery_id: deliveryId, tracking_code: delivery?.tracking_code },
+        status: 'pending',
+      });
+
+    return { success: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+    return { success: false, error: msg };
+  }
+}
