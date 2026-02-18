@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Save, Bell, Shield, Key, Loader2, CheckCircle, AlertCircle, BellRing, Sun, Moon } from 'lucide-react';
+import { Save, Bell, Shield, Key, Loader2, CheckCircle, AlertCircle, BellRing, Sun, Moon, Palette } from 'lucide-react';
 import { adminLogger } from '../utils/logger';
 import Header from '../components/layout/Header';
 import Card, { CardHeader } from '../components/ui/Card';
@@ -14,6 +14,7 @@ interface SettingsState {
   pricing: { base_price: number; price_per_km: number; min_price: number; max_price: number };
   notifications: { new_drivers: boolean; critical_incidents: boolean; new_companies: boolean };
   api: { rate_limit: number; key_expiry_days: number };
+  branding: { header_color: string };
 }
 
 const DEFAULT_SETTINGS: SettingsState = {
@@ -22,6 +23,7 @@ const DEFAULT_SETTINGS: SettingsState = {
   pricing: { base_price: 500, price_per_km: 100, min_price: 500, max_price: 10000 },
   notifications: { new_drivers: true, critical_incidents: true, new_companies: true },
   api: { rate_limit: 100, key_expiry_days: 365 },
+  branding: { header_color: '#f97316' },
 };
 
 export default function SettingsPage() {
@@ -102,6 +104,7 @@ export default function SettingsPage() {
         pricing: { ...DEFAULT_SETTINGS.pricing, ...(data.pricing || {}) } as SettingsState['pricing'],
         notifications: { ...DEFAULT_SETTINGS.notifications, ...(data.notifications || {}) } as SettingsState['notifications'],
         api: { ...DEFAULT_SETTINGS.api, ...(data.api || {}) } as SettingsState['api'],
+        branding: { ...DEFAULT_SETTINGS.branding, ...(data.branding || {}) } as SettingsState['branding'],
       });
     } catch (error) {
       adminLogger.error('Error loading settings', { error });
@@ -114,7 +117,7 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveStatus('idle');
     try {
-      const keys = ['general', 'commission', 'pricing', 'notifications', 'api'] as const;
+      const keys = ['general', 'commission', 'pricing', 'notifications', 'api', 'branding'] as const;
       for (const key of keys) {
         const result = await updateSettings(key, settings[key]);
         if (!result.success) {
@@ -150,6 +153,10 @@ export default function SettingsPage() {
 
   const updateApi = (field: keyof SettingsState['api'], value: number) => {
     setSettings(prev => ({ ...prev, api: { ...prev.api, [field]: value } }));
+  };
+
+  const updateBranding = (field: keyof SettingsState['branding'], value: string) => {
+    setSettings(prev => ({ ...prev, branding: { ...prev.branding, [field]: value } }));
   };
 
   if (loading) {
@@ -211,6 +218,74 @@ export default function SettingsPage() {
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
             </label>
+          </div>
+
+          {/* Header Color */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
+            <div className="flex items-center mb-3">
+              <Palette className="w-5 h-5 text-gray-400 mr-3" />
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Couleur du header (app livreur)</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Couleur d'arrière-plan du header dans l'application livreur
+                </p>
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div
+              className="rounded-lg p-3 mb-3 text-white text-sm font-medium"
+              style={{ backgroundColor: settings.branding.header_color }}
+            >
+              Aperçu du header livreur
+            </div>
+
+            {/* Color picker + hex input */}
+            <div className="flex items-center gap-3 mb-3">
+              <input
+                type="color"
+                value={settings.branding.header_color}
+                onChange={(e) => updateBranding('header_color', e.target.value)}
+                className="w-10 h-10 rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer p-0.5"
+              />
+              <Input
+                label="Code couleur"
+                value={settings.branding.header_color}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (/^#[0-9a-fA-F]{0,6}$/.test(v)) updateBranding('header_color', v);
+                }}
+                placeholder="#f97316"
+                className="w-32"
+              />
+            </div>
+
+            {/* Preset colors */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Presets :</span>
+              {[
+                { color: '#f97316', label: 'Orange' },
+                { color: '#3b82f6', label: 'Bleu' },
+                { color: '#10b981', label: 'Vert' },
+                { color: '#ef4444', label: 'Rouge' },
+                { color: '#8b5cf6', label: 'Violet' },
+                { color: '#06b6d4', label: 'Cyan' },
+                { color: '#f59e0b', label: 'Ambre' },
+                { color: '#ec4899', label: 'Rose' },
+              ].map(({ color, label }) => (
+                <button
+                  key={color}
+                  onClick={() => updateBranding('header_color', color)}
+                  title={label}
+                  className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${
+                    settings.branding.header_color === color
+                      ? 'border-gray-900 dark:border-white scale-110'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
           </div>
         </Card>
 
